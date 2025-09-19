@@ -1,0 +1,31 @@
+{
+	"name": "Zone-Debrid",
+	"version": "1.0.0",
+	"private": true,
+	"workspaces": [
+		"frontend",
+		"backend"
+	],
+	"scripts": {
+		"dev": "npm-run-all --parallel dev:backend dev:frontend:wait",
+		"dev:install": "npm i && npm-run-all --parallel dev:backend:install dev:frontend:install:wait",
+		"dev:frontend:wait": "npm-run-all --sequential wait-backend dev:frontend",
+		"wait-backend": "wait-on tcp:3000",
+		"dev:frontend": "cd frontend && npm run dev",
+		"dev:frontend:install": "cd frontend && npm i && npm run dev",
+		"dev:frontend:install:wait": "npm-run-all --sequential wait-backend dev:frontend:install",
+		"dev:backend:install": "cd backend && npm i && npm run dev",
+		"dev:backend": "cd backend && npm run dev",
+		"build": "npm run build:backend && npm run build:frontend",
+		"build:frontend": "cd frontend && npm run build",
+		"build:backend": "cd backend && npm run build",
+		"start": "npm-run-all --parallel start:backend start:frontend:wait",
+		"start:frontend:wait": "npm-run-all --sequential wait-backend start:frontend",
+		"start:frontend": "cd frontend && npm run preview",
+		"start:backend": "cd backend && npm run start"
+	},
+	"devDependencies": {
+		"wait-on": "^7.2.0",
+		"npm-run-all": "^4.1.5"
+	}
+}
