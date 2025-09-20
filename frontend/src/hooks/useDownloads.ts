@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { DownloadProgress } from '../services/clientDownloadService'
-import downloadHistoryService, { type DownloadHistoryItem } from '../services/downloadHistoryService'
+import downloadHistoryService from '../services/downloadHistoryService'
 import clientDownloadService from '../services/clientDownloadService'
 import { useAuth } from '../contexts/AuthContext'
 
