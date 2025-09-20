@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from 'react'
+import { createContext, useContext, ReactNode } from 'react'
 import { useDownloads, type DownloadItem } from '../hooks/useDownloads'
 
 interface DownloadContextType {

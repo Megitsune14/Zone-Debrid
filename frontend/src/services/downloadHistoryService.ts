@@ -1,4 +1,3 @@
-import apiService from './api'
 import { API_CONFIG } from '../config/api'
 
 export interface DownloadHistoryItem {
