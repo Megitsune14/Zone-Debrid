@@ -2,8 +2,11 @@ import Logger from '@/base/Logger';
 import https from 'https';
 import http from 'http';
 import { URL } from 'url';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const API_BASE = "https://api.alldebrid.com/v4";
+
+const agent = new HttpsProxyAgent(process.env.PROXY_URL);
 
 interface AllDebridResponse {
   status: string;
@@ -190,7 +193,8 @@ const downloadFile = async (url: string, apiKey: string): Promise<NodeJS.Readabl
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'User-Agent': 'Zone-Debrid/1.0'
-        }
+        },
+        agent
       };
 
       const req = httpModule.request(options, (res) => {
