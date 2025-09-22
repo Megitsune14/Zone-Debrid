@@ -83,13 +83,15 @@ export default function DownloadPanel({
                 if (isFilm || isSingleEpisode) {
                     return 'Téléchargement en cours...'
                 } else if (isMultiFile) {
-                    return 'Création du fichier ZIP...'
+                    const episodeCount = download.episodes ? download.episodes.length : (download.progress?.total || 0)
+                    return `Téléchargement de ${episodeCount} fichier(s) individuellement`
                 } else {
                     // Fallback basé sur la progression si les épisodes ne sont pas définis
                     if (download.progress && download.progress.total === 1) {
                         return 'Téléchargement en cours...'
                     }
-                    return 'Création du fichier ZIP...'
+                    const episodeCount = download.progress?.total || 0
+                    return `Téléchargement de ${episodeCount} fichier(s) individuellement`
                 }
             case 'paused':
                 return 'En pause'

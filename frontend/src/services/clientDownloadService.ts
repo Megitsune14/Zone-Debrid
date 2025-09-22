@@ -129,7 +129,7 @@ const downloadSingleFile = async (item: DownloadItem, onProgress?: (progress: Do
 
 /**
  * Download multiple files as a ZIP with folder structure
- * Uses progressive streams like AllDebrid
+ * Uses progressive streams and memory-efficient processing
  * @param {DownloadOptions} options - Download options including files and metadata
  * @param {(progress: DownloadProgress) => void} [onProgress] - Optional progress callback
  * @returns {Promise<void>} Resolves when ZIP download completes
@@ -155,7 +155,7 @@ const downloadMultipleFilesAsZip = async (
       throw new Error('Impossible de créer la structure de dossiers')
     }
 
-    // Télécharger et ajouter chaque fichier au ZIP avec streams progressifs
+    // Télécharger et ajouter chaque fichier au ZIP avec streaming optimisé
     for (let i = 0; i < options.items.length; i++) {
       // Vérifier si le téléchargement a été annulé
       if (currentAbortController?.signal.aborted) {
@@ -191,16 +191,58 @@ const downloadMultipleFilesAsZip = async (
           throw new Error(`Erreur HTTP: ${response.status}`)
         }
 
-        // Lire le stream progressivement
+        // Lire le stream progressivement avec gestion mémoire optimisée
         const reader = response.body?.getReader()
         if (!reader) {
           throw new Error('Impossible de lire le stream')
         }
 
-        const chunks: Uint8Array[] = []
-        let receivedLength = 0
+        // Vérifier la taille du fichier avant de commencer
         const contentLength = response.headers.get('content-length')
         const totalBytes = contentLength ? parseInt(contentLength) : (item.filesize || undefined)
+        
+        // Limite de mémoire par fichier (100MB)
+        const MAX_CHUNK_SIZE = 100 * 1024 * 1024
+        
+        // Si le fichier est trop volumineux, le télécharger individuellement
+        if (totalBytes && totalBytes > MAX_CHUNK_SIZE) {
+          console.warn(`Fichier ${item.filename} trop volumineux (${totalBytes} bytes), téléchargement individuel`)
+          
+          // Fermer le reader actuel
+          reader.releaseLock()
+          
+          // Télécharger ce fichier individuellement
+          const filename = formatEpisodeFilename(
+            item.episodeNumber || '',
+            options.language,
+            options.quality
+          )
+          
+          const individualItem = { ...item, filename }
+          await downloadSingleFile(individualItem, (progress) => {
+            if (onProgress) {
+              onProgress({
+                current: i + 1,
+                total: options.items.length,
+                currentFile: filename,
+                percentage: Math.round(((i + 1) / options.items.length) * 100),
+                bytesReceived: progress.bytesReceived,
+                bytesTotal: progress.bytesTotal,
+                fileProgress: progress.percentage,
+                currentFileBytesReceived: progress.bytesReceived,
+                currentFileBytesTotal: progress.bytesTotal
+              })
+            }
+          })
+          
+          // Passer au fichier suivant
+          continue
+        }
+
+        // Pour les fichiers de taille normale, utiliser le streaming classique
+        const chunks: Uint8Array[] = []
+        let receivedLength = 0
+        let currentChunkSize = 0
 
         try {
           while (true) {
@@ -214,6 +256,7 @@ const downloadMultipleFilesAsZip = async (
             if (done) break
             
             chunks.push(value)
+            currentChunkSize += value.length
             receivedLength += value.length
             
             // Mettre à jour la progression du fichier en cours
@@ -241,8 +284,14 @@ const downloadMultipleFilesAsZip = async (
           throw readError
         }
 
-        // Créer le blob à partir des chunks
-        const blob = new Blob(chunks as BlobPart[])
+        // Créer le blob à partir des chunks avec gestion d'erreur
+        let blob: Blob
+        try {
+          blob = new Blob(chunks as BlobPart[])
+        } catch (blobError) {
+          console.error(`Erreur création blob pour ${item.filename}:`, blobError)
+          throw new Error(`Impossible de créer le fichier ${item.filename}: mémoire insuffisante`)
+        }
         
         // Ajouter au ZIP avec le nom formaté
         const filename = formatEpisodeFilename(
@@ -251,7 +300,16 @@ const downloadMultipleFilesAsZip = async (
           options.quality
         )
         
-        seasonFolder.file(filename, blob)          
+        try {
+          seasonFolder.file(filename, blob)
+        } catch (zipError) {
+          console.error(`Erreur ajout au ZIP pour ${item.filename}:`, zipError)
+          throw new Error(`Impossible d'ajouter ${item.filename} au ZIP: mémoire insuffisante`)
+        }
+        
+        // Libérer la mémoire des chunks
+        chunks.length = 0
+        
       } catch (error) {
         // Ne pas afficher l'erreur si c'est une annulation
         if (error instanceof Error && (error.name === 'AbortError' || error.message === 'Download cancelled')) {
@@ -267,17 +325,38 @@ const downloadMultipleFilesAsZip = async (
       throw new Error('Download cancelled')
     }
 
-    // Générer le ZIP
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    // Vérifier si le ZIP contient des fichiers
+    const zipFiles = Object.keys(zip.files).filter(name => !zip.files[name].dir)
+    
+    if (zipFiles.length > 0) {
+      // Générer le ZIP avec options de compression optimisées
+      let zipBlob: Blob
+      try {
+        zipBlob = await zip.generateAsync({ 
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: {
+            level: 6 // Niveau de compression équilibré
+          }
+        })
+      } catch (zipGenError) {
+        console.error('Erreur génération ZIP:', zipGenError)
+        throw new Error('Impossible de générer le ZIP: mémoire insuffisante')
+      }
 
-    // Vérifier à nouveau avant de télécharger
-    if (currentAbortController?.signal.aborted) {
-      throw new Error('Download cancelled')
-    }
+      // Vérifier à nouveau avant de télécharger
+      if (currentAbortController?.signal.aborted) {
+        throw new Error('Download cancelled')
+      }
 
-    // Télécharger le ZIP
-    const zipFilename = formatZipFilename(options)
-    downloadBlob(zipBlob, zipFilename)      
+      // Télécharger le ZIP
+      const zipFilename = `${sanitizeFilename(options.title)} - ${options.language} - ${options.quality}.zip`
+      downloadBlob(zipBlob, zipFilename)
+      
+      console.info(`ZIP créé avec ${zipFiles.length} fichier(s)`)
+    } else {
+      console.info('Aucun fichier ajouté au ZIP (tous les fichiers étaient trop volumineux)')
+    }      
   } catch (error) {
     // Nettoyer l'AbortController
     currentAbortController = null
@@ -288,6 +367,75 @@ const downloadMultipleFilesAsZip = async (
     }
     
     console.error('Error creating ZIP:', error)
+    throw error
+  }
+}
+
+/**
+ * Download multiple large files individually (fallback for memory issues)
+ * @param {DownloadOptions} options - Download options including files and metadata
+ * @param {(progress: DownloadProgress) => void} [onProgress] - Optional progress callback
+ * @returns {Promise<void>} Resolves when all downloads complete
+ * @throws {Error} When download fails or is cancelled
+ */
+const downloadMultipleFilesIndividually = async (
+  options: DownloadOptions,
+  onProgress?: (progress: DownloadProgress) => void
+): Promise<void> => {
+  try {
+    // Créer un AbortController pour ce téléchargement
+    currentAbortController = new AbortController()
+    
+    console.info(`Téléchargement de ${options.items.length} fichier(s) individuellement`)
+    
+    // Télécharger chaque fichier individuellement
+    for (let i = 0; i < options.items.length; i++) {
+      // Vérifier si le téléchargement a été annulé
+      if (currentAbortController?.signal.aborted) {
+        throw new Error('Download cancelled')
+      }
+      
+      const item = options.items[i]
+      
+      // Formater le nom de fichier
+      const filename = formatSingleEpisodeFilename(
+        options.title,
+        options.season || '1',
+        item.episodeNumber || '1',
+        options.language,
+        options.quality
+      )
+      
+      // Créer un item avec le nom formaté
+      const formattedItem = { ...item, filename }
+      
+      // Télécharger le fichier individuellement
+      await downloadSingleFile(formattedItem, (progress) => {
+        if (onProgress) {
+          onProgress({
+            current: i + 1,
+            total: options.items.length,
+            currentFile: filename,
+            percentage: Math.round(((i + 1) / options.items.length) * 100),
+            bytesReceived: progress.bytesReceived,
+            bytesTotal: progress.bytesTotal,
+            fileProgress: progress.percentage,
+            currentFileBytesReceived: progress.bytesReceived,
+            currentFileBytesTotal: progress.bytesTotal
+          })
+        }
+      })
+    }
+  } catch (error) {
+    // Nettoyer l'AbortController
+    currentAbortController = null
+    
+    // Ne pas traiter l'annulation comme une erreur
+    if (error instanceof Error && (error.name === 'AbortError' || error.message === 'Download cancelled')) {
+      throw new Error('Download cancelled')
+    }
+    
+    console.error('Error downloading files individually:', error)
     throw error
   }
 }
@@ -355,19 +503,6 @@ const formatSingleEpisodeFilename = (
   return `${sanitizedTitle} - Saison ${season} - Episode ${episodeNumber} - ${language} - ${quality}.mkv`
 }
 
-/**
- * Format ZIP filename based on download options
- * @param {DownloadOptions} options - Download options with title, season, episodes, etc.
- * @returns {string} Formatted ZIP filename
- */
-const formatZipFilename = (options: DownloadOptions): string => {
-  const sanitizedTitle = sanitizeFilename(options.title)
-  const seasonPart = options.season ? ` - Saison ${options.season}` : ''
-  const episodeCount = options.items.length
-  const episodePart = episodeCount > 1 ? ` (${episodeCount} épisodes)` : ''
-  
-  return `${sanitizedTitle}${seasonPart}${episodePart} - ${options.language} - ${options.quality}.zip`
-}
 
 /**
  * Sanitize filename to avoid invalid characters
@@ -381,14 +516,6 @@ const sanitizeFilename = (filename: string): string => {
     .trim()
 }
 
-/**
- * Determine if a ZIP should be created or download directly
- * @param {DownloadItem[]} items - Array of download items
- * @returns {boolean} True if ZIP should be created (multiple files), false for direct download
- */
-const shouldCreateZip = (items: DownloadItem[]): boolean => {
-  return items.length > 1
-}
 
 /**
  * Toggle between using client or server bandwidth
@@ -424,7 +551,7 @@ const isDownloading = (): boolean => {
 }
 
 /**
- * Download based on type (single file or ZIP)
+ * Download based on type (single file or multiple files individually)
  * @param {DownloadOptions} options - Download options with files and metadata
  * @param {(progress: DownloadProgress) => void} [onProgress] - Optional progress callback
  * @returns {Promise<void>} Resolves when download completes
@@ -434,8 +561,9 @@ const download = async (
   options: DownloadOptions,
   onProgress?: (progress: DownloadProgress) => void
 ): Promise<void> => {
-  if (shouldCreateZip(options.items)) {
-    await downloadMultipleFilesAsZip(options, onProgress)
+  if (options.items.length > 1) {
+    // Téléchargement multiple - toujours individuellement
+    await downloadMultipleFilesIndividually(options, onProgress)
   } else {
     // Téléchargement simple avec progression
     const item = options.items[0]
@@ -458,11 +586,10 @@ const download = async (
 const ClientDownloadService = {
   downloadSingleFile,
   downloadMultipleFilesAsZip,
+  downloadMultipleFilesIndividually,
   formatFilmFilename,
   formatEpisodeFilename,
   formatSingleEpisodeFilename,
-  formatZipFilename,
-  shouldCreateZip,
   setUseClientBandwidth,
   isUsingClientBandwidth,
   cancelDownload,

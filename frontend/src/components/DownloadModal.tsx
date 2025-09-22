@@ -313,9 +313,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
         type: result.type,
         progress: null,
         cleared: false,
-        zipFilename: clientDownloadService.shouldCreateZip(downloadItems) 
-          ? clientDownloadService.formatZipFilename(downloadOptions) 
-          : undefined,
+        zipFilename: undefined, // Plus de ZIP, téléchargement individuel uniquement
         language: selectedLanguage,
         quality: selectedQuality,
         season: selectedSeason.replace('SAISON_', ''),
