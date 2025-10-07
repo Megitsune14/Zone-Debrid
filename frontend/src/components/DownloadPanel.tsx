@@ -187,11 +187,11 @@ export default function DownloadPanel({
             <div className="fixed bottom-4 right-4 z-50">
                 <button
                     onClick={onToggle}
-                    className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-colors relative"
+                    className="bg-blue-600 hover:bg-blue-700 text-white p-2 sm:p-3 rounded-full shadow-lg transition-colors relative"
                 >
-                    <FiDownload className="h-6 w-6" />
+                    <FiDownload className="h-5 w-5 sm:h-6 sm:w-6" />
                     {activeDownloads.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center">
                             {activeDownloads.length}
                         </span>
                     )}
@@ -201,30 +201,30 @@ export default function DownloadPanel({
     }
 
     return (
-        <div className="fixed bottom-4 right-4 z-50 w-96 max-h-96 bg-dark-800 border border-gray-700 rounded-lg shadow-xl">
+        <div className="fixed bottom-4 right-4 z-50 w-80 sm:w-96 max-h-80 sm:max-h-96 bg-dark-800 border border-gray-700 rounded-lg shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+            <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-700">
                 <div className="flex items-center space-x-2">
-                    <FiDownload className="h-5 w-5 text-blue-500" />
-                    <h3 className="text-lg font-semibold text-white">Téléchargements</h3>
+                    <FiDownload className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+                    <h3 className="text-base sm:text-lg font-semibold text-white">Téléchargements</h3>
                     {activeDownloads.length > 0 && (
-                        <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                        <span className="bg-blue-500 text-white text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
                             {activeDownloads.length}
                         </span>
                     )}
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1 sm:space-x-2">
                     <button
                         onClick={() => setIsMinimized(!isMinimized)}
-                        className="text-gray-400 hover:text-white transition-colors"
+                        className="text-gray-400 hover:text-white transition-colors p-1"
                     >
-                        {isMinimized ? <FiChevronUp className="h-4 w-4" /> : <FiChevronDown className="h-4 w-4" />}
+                        {isMinimized ? <FiChevronUp className="h-3 w-3 sm:h-4 sm:w-4" /> : <FiChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />}
                     </button>
                     <button
                         onClick={onToggle}
-                        className="text-gray-400 hover:text-white transition-colors"
+                        className="text-gray-400 hover:text-white transition-colors p-1"
                     >
-                        <FiX className="h-4 w-4" />
+                        <FiX className="h-3 w-3 sm:h-4 sm:w-4" />
                     </button>
                 </div>
             </div>
@@ -249,17 +249,17 @@ export default function DownloadPanel({
                                                         {download.title}
                                                     </div>
                                                     <div className="text-xs text-gray-400 mt-1">
-                                                        <div className="flex items-center space-x-2">
-                                                            <span className="bg-gray-600 px-2 py-0.5 rounded text-xs">
+                                                        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                                            <span className="bg-gray-600 px-1.5 sm:px-2 py-0.5 rounded text-xs whitespace-nowrap">
                                                                 {getTypeText(download.type)}
                                                             </span>
                                                             {download.language && (
-                                                                <span className="bg-blue-600 px-2 py-0.5 rounded text-xs">
+                                                                <span className="bg-blue-600 px-1.5 sm:px-2 py-0.5 rounded text-xs whitespace-nowrap">
                                                                     {download.language}
                                                                 </span>
                                                             )}
                                                             {download.quality && (
-                                                                <span className="bg-green-600 px-2 py-0.5 rounded text-xs">
+                                                                <span className="bg-green-600 px-1.5 sm:px-2 py-0.5 rounded text-xs whitespace-nowrap">
                                                                     {download.quality}
                                                                 </span>
                                                             )}
@@ -421,17 +421,17 @@ export default function DownloadPanel({
                                                         {download.title}
                                                     </div>
                                                     <div className="text-xs text-gray-400 mt-1">
-                                                        <div className="flex items-center space-x-2">
-                                                            <span className="bg-gray-600 px-2 py-0.5 rounded text-xs">
+                                                        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                                            <span className="bg-gray-600 px-1.5 sm:px-2 py-0.5 rounded text-xs whitespace-nowrap">
                                                                 {getTypeText(download.type)}
                                                             </span>
                                                             {download.language && (
-                                                                <span className="bg-blue-600 px-2 py-0.5 rounded text-xs">
+                                                                <span className="bg-blue-600 px-1.5 sm:px-2 py-0.5 rounded text-xs whitespace-nowrap">
                                                                     {download.language}
                                                                 </span>
                                                             )}
                                                             {download.quality && (
-                                                                <span className="bg-green-600 px-2 py-0.5 rounded text-xs">
+                                                                <span className="bg-green-600 px-1.5 sm:px-2 py-0.5 rounded text-xs whitespace-nowrap">
                                                                     {download.quality}
                                                                 </span>
                                                             )}

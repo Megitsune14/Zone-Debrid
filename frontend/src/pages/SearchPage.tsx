@@ -40,14 +40,14 @@ const SearchPage = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-white">Recherche</h1>
+    <div className="max-w-6xl mx-auto px-4">
+      <div className="flex items-center justify-between mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Recherche</h1>
       </div>
       
       <SiteStatus ref={siteStatusRef} />
       <SearchBar onSearch={handleSearch} isSearching={isSearching} />
-      <div className="mt-8">
+      <div className="mt-6 sm:mt-8">
         <SearchResults 
           results={searchResults} 
           isLoading={isSearching}

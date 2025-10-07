@@ -71,38 +71,38 @@ const AppContent = () => {
             isAuthenticated ? <Navigate to="/" replace /> : <AuthPage />
           } />
           <Route path="/" element={
-            <div className="container mx-auto px-4 py-8">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
               <HomePage />
             </div>
           } />
           <Route path="/search" element={
             <ProtectedRoute>
-              <div className="container mx-auto px-4 py-8">
+              <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
                 <SearchPage />
               </div>
             </ProtectedRoute>
           } />
           <Route path="/settings" element={
             <ProtectedRoute>
-              <div className="container mx-auto px-4 py-8">
+              <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
                 <SettingsPage />
               </div>
             </ProtectedRoute>
           } />
           <Route path="/metrics" element={
             <ProtectedRoute>
-              <div className="container mx-auto px-4 py-8">
+              <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
                 <MetricsPage />
               </div>
             </ProtectedRoute>
           } />
           <Route path="/privacy" element={
-            <div className="container mx-auto px-4 py-8">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
               <PrivacyPolicyPage />
             </div>
           } />
           <Route path="/terms" element={
-            <div className="container mx-auto px-4 py-8">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
               <TermsOfServicePage />
             </div>
           } />

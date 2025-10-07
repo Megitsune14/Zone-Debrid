@@ -863,32 +863,32 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-dark-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-dark-800 rounded-lg p-3 sm:p-4 md:p-6 w-full max-w-xs sm:max-w-lg md:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 md:mb-6">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
             {getTypeIcon(result.type)}
-            <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+            <h3 className="text-sm sm:text-base md:text-lg font-semibold text-white truncate">{item.title}</h3>
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-400 hover:text-white transition-colors p-1 flex-shrink-0"
           >
-            <FiX className="h-6 w-6" />
+            <FiX className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
           </button>
         </div>
 
         {/* Progress indicator - only show if not in progress step */}
         {!showProgress && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
+          <div className="mb-4 sm:mb-5 md:mb-6">
+            <div className="flex items-center justify-between text-xs sm:text-sm text-gray-400 mb-2">
               <span>Étape {currentStep} sur {getMaxSteps()}</span>
               <span>{Math.round((currentStep / getMaxSteps()) * 100)}%</span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
+            <div className="w-full bg-gray-700 rounded-full h-1.5 sm:h-2">
               <div
-                className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
+                className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 sm:h-2 rounded-full transition-all duration-300"
                 style={{ width: `${(currentStep / getMaxSteps()) * 100}%` }}
               />
             </div>
@@ -896,17 +896,17 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
         )}
 
         {/* Step content */}
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-5 md:mb-6">
           {renderCurrentStep()}
         </div>
 
         {/* Navigation - only show if not in progress step */}
         {!showProgress && (
-          <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             {currentStep > 1 && (
               <button
                 onClick={handlePrevious}
-                className="btn-secondary flex-1"
+                className="btn-secondary flex-1 order-2 sm:order-1"
               >
                 Précédent
               </button>
@@ -916,7 +916,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
               <button
                 onClick={handleNext}
                 disabled={!isStepValid()}
-                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed order-1 sm:order-2"
               >
                 Suivant
               </button>
@@ -924,7 +924,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
               <button
                 onClick={handleConfirm}
                 disabled={!isStepValid()}
-                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed order-1 sm:order-2"
               >
                 Vérifier la disponibilité
               </button>

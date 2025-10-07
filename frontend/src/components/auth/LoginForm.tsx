@@ -36,15 +36,15 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
 
   return (
     <div className="w-full max-w-md">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-white mb-2">Connexion</h2>
-        <p className="text-gray-400">Connectez-vous à votre compte</p>
+      <div className="text-center mb-6 sm:mb-8">
+        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">Connexion</h2>
+        <p className="text-sm sm:text-base text-gray-400">Connectez-vous à votre compte</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-            <p className="text-red-400 text-sm">{error}</p>
+            <p className="text-red-400 text-xs sm:text-sm">{error}</p>
           </div>
         )}
 
@@ -59,7 +59,7 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
             value={formData.username}
             onChange={handleChange}
             required
-            className="input-field w-full"
+            className="input-field w-full text-sm sm:text-base"
             placeholder="Votre nom d'utilisateur"
             disabled={isLoading}
           />
@@ -77,7 +77,7 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
               value={formData.password}
               onChange={handleChange}
               required
-              className="input-field w-full pr-10"
+              className="input-field w-full pr-10 text-sm sm:text-base"
               placeholder="Votre mot de passe"
               disabled={isLoading}
             />
@@ -95,21 +95,21 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
         <button
           type="submit"
           disabled={isLoading}
-          className="btn-primary w-full flex items-center justify-center space-x-2"
+          className="btn-primary w-full flex items-center justify-center space-x-2 py-2 sm:py-3"
         >
           {isLoading ? (
             <>
               <FiLoader className="h-4 w-4 animate-spin" />
-              <span>Connexion...</span>
+              <span className="text-sm sm:text-base">Connexion...</span>
             </>
           ) : (
-            <span>Se connecter</span>
+            <span className="text-sm sm:text-base">Se connecter</span>
           )}
         </button>
       </form>
 
-      <div className="mt-6 text-center">
-        <p className="text-gray-400">
+      <div className="mt-4 sm:mt-6 text-center">
+        <p className="text-gray-400 text-xs sm:text-sm">
           Pas encore de compte ?{' '}
           <button
             onClick={onSwitchToRegister}

@@ -80,23 +80,23 @@ const SiteStatus = forwardRef<SiteStatusRef, SiteStatusProps>(({ onSearchTrigger
 
     if (isLoading) {
         return (
-            <div className="card mb-6">
-                <div className="flex items-center space-x-3">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500"></div>
-                    <span className="text-gray-300">Chargement du statut...</span>
-                </div>
+        <div className="card mb-4 md:mb-6">
+            <div className="flex items-center space-x-2 md:space-x-3">
+                <div className="animate-spin rounded-full h-4 w-4 md:h-5 md:w-5 border-b-2 border-primary-500"></div>
+                <span className="text-sm md:text-base text-gray-300">Chargement du statut...</span>
             </div>
+        </div>
         )
     }
 
     if (error) {
         return (
-            <div className="card mb-6 border-red-500/20 bg-red-500/5">
-                <div className="flex items-center space-x-3">
-                    <FiAlertCircle className="h-5 w-5 text-red-400" />
-                    <span className="text-red-300">Erreur: {error}</span>
-                </div>
+        <div className="card mb-4 md:mb-6 border-red-500/20 bg-red-500/5">
+            <div className="flex items-center space-x-2 md:space-x-3">
+                <FiAlertCircle className="h-4 w-4 md:h-5 md:w-5 text-red-400" />
+                <span className="text-sm md:text-base text-red-300">Erreur: {error}</span>
             </div>
+        </div>
         )
     }
 
@@ -105,31 +105,31 @@ const SiteStatus = forwardRef<SiteStatusRef, SiteStatusProps>(({ onSearchTrigger
     }
 
     return (
-        <div className="card mb-6">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
+        <div className="card mb-4 md:mb-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
+                <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-4">
                     <div className="flex items-center space-x-2">
                         {siteStatus.isHealthy ? (
-                            <FiCheckCircle className="h-5 w-5 text-green-400" />
+                            <FiCheckCircle className="h-4 w-4 md:h-5 md:w-5 text-green-400" />
                         ) : (
-                            <FiAlertCircle className="h-5 w-5 text-yellow-400" />
+                            <FiAlertCircle className="h-4 w-4 md:h-5 md:w-5 text-yellow-400" />
                         )}
                         <span className="text-sm font-medium text-gray-300">
                             Zone Téléchargement
                         </span>
                     </div>
 
-                    <div className="flex items-center space-x-2 text-sm text-gray-400">
-                        <FiGlobe className="h-4 w-4" />
-                        <span className="truncate max-w-[200px]" title={siteStatus.currentUrl}>
+                    <div className="flex items-center space-x-2 text-xs md:text-sm text-gray-400">
+                        <FiGlobe className="h-3 w-3 md:h-4 md:w-4" />
+                        <span className="truncate max-w-[150px] md:max-w-[200px]" title={siteStatus.currentUrl}>
                             {siteStatus.currentUrl.replace('https://', '')}
                         </span>
                     </div>
                 </div>
 
-                <div className="flex items-center space-x-4 text-sm text-gray-400">
+                <div className="flex items-center justify-between md:justify-end space-x-3 md:space-x-4 text-xs md:text-sm text-gray-400">
                     <div className="flex items-center space-x-1">
-                        <FiClock className="h-4 w-4" />
+                        <FiClock className="h-3 w-3 md:h-4 md:w-4" />
                         <span>{formatResponseTime(siteStatus.responseTime)}</span>
                     </div>
 

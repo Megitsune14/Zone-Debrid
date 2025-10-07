@@ -27,7 +27,7 @@ const SearchBar = ({ onSearch, isSearching }: SearchBarProps) => {
   return (
     <div className="card">
       <form onSubmit={handleSubmit}>
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-col md:flex-row md:items-center space-y-3 md:space-y-0 md:space-x-4">
           <div className="flex-1 relative">
             <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
@@ -40,42 +40,45 @@ const SearchBar = ({ onSearch, isSearching }: SearchBarProps) => {
             />
           </div>
           
-          {/* Content Type Filter */}
-          <div className="flex-shrink-0">
-            <select
-              value={contentType}
-              onChange={(e) => setContentType(e.target.value as ContentType)}
-              className="input-field min-w-[120px]"
-              disabled={isSearching}
-            >
-              <option value="all">Tous</option>
-              <option value="films">Films</option>
-              <option value="series">Séries</option>
-              <option value="mangas">Animes</option>
-            </select>
-          </div>
-          
-          {/* Year Filter */}
-          <div className="flex-shrink-0">
-            <select
-              value={year || ''}
-              onChange={(e) => setYear(e.target.value ? parseInt(e.target.value, 10) : undefined)}
-              className="input-field min-w-[100px]"
-              disabled={isSearching}
-            >
-              <option value="">Toutes années</option>
-              {yearOptions.map((yearOption) => (
-                <option key={yearOption} value={yearOption}>
-                  {yearOption}
-                </option>
-              ))}
-            </select>
+          {/* Filters Container */}
+          <div className="flex flex-row space-x-2 md:space-x-4 md:flex-shrink-0">
+            {/* Content Type Filter */}
+            <div className="flex-1 md:flex-shrink-0">
+              <select
+                value={contentType}
+                onChange={(e) => setContentType(e.target.value as ContentType)}
+                className="input-field w-full md:min-w-[120px]"
+                disabled={isSearching}
+              >
+                <option value="all">Tous</option>
+                <option value="films">Films</option>
+                <option value="series">Séries</option>
+                <option value="mangas">Animes</option>
+              </select>
+            </div>
+            
+            {/* Year Filter */}
+            <div className="flex-1 md:flex-shrink-0">
+              <select
+                value={year || ''}
+                onChange={(e) => setYear(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                className="input-field w-full md:min-w-[100px]"
+                disabled={isSearching}
+              >
+                <option value="">Toutes années</option>
+                {yearOptions.map((yearOption) => (
+                  <option key={yearOption} value={yearOption}>
+                    {yearOption}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           
           <button
             type="submit"
             disabled={isSearching || !query.trim()}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto"
           >
             {isSearching ? 'Recherche...' : 'Rechercher'}
           </button>

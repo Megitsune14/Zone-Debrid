@@ -56,49 +56,49 @@ const Header = () => {
 
   return (
     <header className="bg-dark-800 border-b border-dark-700">
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             <div 
-              className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
+              className="flex items-center space-x-1 sm:space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => navigate('/')}
             >
-              <FiDownload className="h-8 w-8 text-primary-500" />
-              <h1 className="text-2xl font-bold text-white">Zone-Debrid</h1>
+              <FiDownload className="h-6 w-6 sm:h-8 sm:w-8 text-primary-500" />
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">Zone-Debrid</h1>
             </div>
           </div>
           
-          <div className="flex items-center space-x-4">
-            <nav className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <nav className="flex items-center space-x-2 lg:space-x-4">
               <button 
                 onClick={() => navigate('/')}
-                className={`btn-secondary flex items-center space-x-2 ${isHomePage ? 'bg-primary-600 text-white' : ''}`}
+                className={`btn-secondary flex items-center space-x-1 lg:space-x-2 text-sm lg:text-base ${isHomePage ? 'bg-primary-600 text-white' : ''}`}
               >
                 <FiHome className="h-4 w-4" />
-                <span>Accueil</span>
+                <span className="hidden lg:inline">Accueil</span>
               </button>
               {isAuthenticated && (
                 <button 
                   onClick={() => navigate('/search')}
-                  className={`btn-secondary flex items-center space-x-2 ${isSearchPage ? 'bg-primary-600 text-white' : ''}`}
+                  className={`btn-secondary flex items-center space-x-1 lg:space-x-2 text-sm lg:text-base ${isSearchPage ? 'bg-primary-600 text-white' : ''}`}
                 >
                   <FiSearch className="h-4 w-4" />
-                  <span>Recherche</span>
+                  <span className="hidden lg:inline">Recherche</span>
                 </button>
               )}
             </nav>
 
             {/* Section utilisateur */}
-            <div className="flex items-center space-x-3 border-l border-dark-600 pl-4">
+            <div className="flex items-center space-x-2 sm:space-x-3 border-l border-dark-600 pl-2 sm:pl-4">
               {isAuthenticated ? (
                 <div className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="flex items-center space-x-3 bg-dark-700 px-3 py-2 rounded-lg hover:bg-dark-600 transition-colors duration-200"
+                    className="flex items-center space-x-2 sm:space-x-3 bg-dark-700 px-2 sm:px-3 py-2 rounded-lg hover:bg-dark-600 transition-colors duration-200"
                   >
-                    <div className="flex items-center space-x-2">
-                      <FiUser className="h-5 w-5 text-primary-400" />
-                      <span className="text-base font-medium text-white">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
+                      <FiUser className="h-4 w-4 sm:h-5 sm:w-5 text-primary-400" />
+                      <span className="text-sm sm:text-base font-medium text-white hidden sm:inline">
                         {user?.username ? capitalizeFirstLetter(user.username) : ''}
                       </span>
                     </div>
@@ -111,11 +111,11 @@ const Header = () => {
 
                   {/* Menu déroulant */}
                   {isDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-dark-700 border border-dark-600 rounded-lg shadow-lg z-50">
+                    <div className="absolute right-0 mt-2 w-40 sm:w-48 bg-dark-700 border border-dark-600 rounded-lg shadow-lg z-50">
                       <div className="py-1">
                         <button
                           onClick={handleSettings}
-                          className={`flex items-center space-x-3 w-full px-4 py-3 text-left transition-colors duration-200 ${
+                          className={`flex items-center space-x-2 sm:space-x-3 w-full px-3 sm:px-4 py-2 sm:py-3 text-left transition-colors duration-200 text-sm sm:text-base ${
                             isSettingsPage 
                               ? 'bg-primary-600 text-white' 
                               : 'text-gray-300 hover:bg-dark-600 hover:text-white'
@@ -127,7 +127,7 @@ const Header = () => {
                         {user?.username === 'megitsune' && (
                           <button
                             onClick={handleMetrics}
-                            className={`flex items-center space-x-3 w-full px-4 py-3 text-left transition-colors duration-200 ${
+                            className={`flex items-center space-x-2 sm:space-x-3 w-full px-3 sm:px-4 py-2 sm:py-3 text-left transition-colors duration-200 text-sm sm:text-base ${
                               isMetricsPage 
                                 ? 'bg-primary-600 text-white' 
                                 : 'text-gray-300 hover:bg-dark-600 hover:text-white'
@@ -140,7 +140,7 @@ const Header = () => {
                         <div className="border-t border-dark-600 my-1"></div>
                         <button
                           onClick={handleLogout}
-                          className="flex items-center space-x-3 w-full px-4 py-3 text-left text-red-400 hover:bg-dark-600 hover:text-red-300 transition-colors duration-200"
+                          className="flex items-center space-x-2 sm:space-x-3 w-full px-3 sm:px-4 py-2 sm:py-3 text-left text-red-400 hover:bg-dark-600 hover:text-red-300 transition-colors duration-200 text-sm sm:text-base"
                         >
                           <FiLogOut className="h-4 w-4" />
                           <span>Déconnexion</span>

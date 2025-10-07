@@ -162,9 +162,9 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
   if (isLoading) {
     return (
       <div className="card">
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-          <span className="ml-3 text-gray-400">Recherche en cours...</span>
+        <div className="flex items-center justify-center py-8 md:py-12">
+          <div className="animate-spin rounded-full h-6 w-6 md:h-8 md:w-8 border-b-2 border-primary-500"></div>
+          <span className="ml-2 md:ml-3 text-sm md:text-base text-gray-400">Recherche en cours...</span>
         </div>
       </div>
     )
@@ -173,10 +173,10 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
   if (!hasSearched) {
     return (
       <div className="card">
-        <div className="text-center py-12">
-          <FiSearch className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-300 mb-2">Veuillez commencer une recherche</h3>
-          <p className="text-gray-500">Tapez le nom d'un film, d'une série ou d'un anime</p>
+        <div className="text-center py-8 md:py-12">
+          <FiSearch className="h-10 w-10 md:h-12 md:w-12 text-gray-500 mx-auto mb-3 md:mb-4" />
+          <h3 className="text-base md:text-lg font-medium text-gray-300 mb-2">Veuillez commencer une recherche</h3>
+          <p className="text-sm md:text-base text-gray-500">Tapez le nom d'un film, d'une série ou d'un anime</p>
         </div>
       </div>
     )
@@ -188,48 +188,48 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
   if (!hasAnyResults) {
     return (
       <div className="card">
-        <div className="text-center py-12">
-          <FiSearch className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-300 mb-2">Aucun résultat</h3>
-          <p className="text-gray-500">Essayez de modifier vos critères de recherche</p>
+        <div className="text-center py-8 md:py-12">
+          <FiSearch className="h-10 w-10 md:h-12 md:w-12 text-gray-500 mx-auto mb-3 md:mb-4" />
+          <h3 className="text-base md:text-lg font-medium text-gray-300 mb-2">Aucun résultat</h3>
+          <p className="text-sm md:text-base text-gray-500">Essayez de modifier vos critères de recherche</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4">
       {results.filter(result => result.results.length > 0).map((result) => (
-        <div key={result.type} className="space-y-4">
+        <div key={result.type} className="space-y-3 md:space-y-4">
           {result.results.map((item, index) => (
               <div key={`${result.type}-${index}`} className="card">
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0">
+                <div className="flex flex-col md:flex-row items-start space-y-3 md:space-y-0 md:space-x-4">
+                  <div className="flex-shrink-0 w-full md:w-auto">
                     {item.image ? (
                       <img
                         src={item.image}
                         alt={item.title}
-                        className="w-32 h-48 object-cover rounded-lg"
+                        className="w-full md:w-32 h-48 md:h-48 object-cover rounded-lg"
                       />
                     ) : (
-                      <div className="w-20 h-28 bg-dark-700 rounded-lg flex items-center justify-center">
+                      <div className="w-full md:w-20 h-32 md:h-28 bg-dark-700 rounded-lg flex items-center justify-center">
                         {getTypeIcon(result.type)}
                       </div>
                     )}
                   </div>
                   
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0 w-full">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between">
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-white mb-1">{item.title}</h3>
-                        <div className="text-gray-400 text-sm mb-2">
+                        <h3 className="text-base md:text-lg font-semibold text-white mb-1">{item.title}</h3>
+                        <div className="text-gray-400 text-xs md:text-sm mb-2">
                           {item.description && truncateDescription(item.description, `${result.type}-${index}`)}
                         </div>
                         
-                        <div className="flex items-center space-x-4 text-sm text-gray-500 mb-2">
+                        <div className="flex flex-col md:flex-row md:items-center space-y-1 md:space-y-0 md:space-x-4 text-xs md:text-sm text-gray-500 mb-2">
                           {item.release_date && (
                             <div className="flex items-center space-x-1">
-                              <FiCalendar className="h-4 w-4" />
+                              <FiCalendar className="h-3 w-3 md:h-4 md:w-4" />
                               <span>{item.release_date}</span>
                             </div>
                           )}
@@ -251,7 +251,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
                       
                       <button
                         onClick={() => handleDownloadClick(result, item)}
-                        className="btn-primary flex items-center space-x-2"
+                        className="btn-primary flex items-center justify-center space-x-2 w-full md:w-auto mt-3 md:mt-0"
                       >
                         <FiDownload className="h-4 w-4" />
                         <span>Télécharger</span>
