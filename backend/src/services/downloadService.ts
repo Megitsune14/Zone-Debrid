@@ -163,7 +163,7 @@ const scrapeDownloadLinks = async (downloadLink: string, targetEpisode?: string,
           }
         }
         // Si c'est un lien et qu'on a un hébergeur actuel
-        else if ($child.is('a[href*="dl-protect.link"]') && currentHost) {
+        else if ($child.is('a[href*="dl-protect."]') && currentHost) {
           const linkText = $child.text().trim();
           const linkHref = $child.attr('href');
           
