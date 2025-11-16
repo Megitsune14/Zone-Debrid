@@ -20,6 +20,12 @@ export interface IDownloadHistory extends Document {
   updatedAt: Date
 }
 
+// Lean version (plain object) for use with .lean() queries
+export type IDownloadHistoryLean = Omit<IDownloadHistory, keyof Document> & {
+  _id: mongoose.Types.ObjectId
+  __v?: number
+}
+
 const DownloadHistorySchema = new Schema<IDownloadHistory>({
   userId: {
     type: Schema.Types.ObjectId,

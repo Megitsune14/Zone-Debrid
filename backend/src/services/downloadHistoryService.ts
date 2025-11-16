@@ -1,4 +1,4 @@
-import DownloadHistory, { IDownloadHistory } from '@/models/DownloadHistory'
+import DownloadHistory, { IDownloadHistory, IDownloadHistoryLean } from '@/models/DownloadHistory'
 import Logger from '@/base/Logger'
 
 interface CreateDownloadHistoryData {
@@ -87,7 +87,7 @@ const getUserDownloadHistory = async (
   skip: number = 0,
   status?: string,
   includeCleared: boolean = false
-): Promise<IDownloadHistory[]> => {
+): Promise<IDownloadHistoryLean[]> => {
   try {
     const query: any = { userId }
     
@@ -109,7 +109,7 @@ const getUserDownloadHistory = async (
 
     Logger.debug(`Retrieved ${downloadHistory.length} download history records for user ${userId}`)
     
-    return downloadHistory as IDownloadHistory[]
+    return downloadHistory as unknown as IDownloadHistoryLean[]
   } catch (error) {
     Logger.error(`Error getting user download history: ${error}`)
     throw error
