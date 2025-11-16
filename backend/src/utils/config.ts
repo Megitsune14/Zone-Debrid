@@ -71,11 +71,6 @@ export const checkConfig = async (): Promise<void> => {
 		}
 
 		if (envParse.NODE_ENV === "production") {
-			const files = await fs.readdir("./dist");
-
-			if (files.length === 0) {
-				throw new Error("No files found in the dist folder. Please run 'npm run build' first.");
-			}
 
 			if (npmScript !== 'start') {
 				throw new Error("In production mode, you must use 'npm run start' to run the compiled code.");
