@@ -667,7 +667,7 @@ const extractSeasonDetails = async (link: string): Promise<{ episodes?: number; 
     
     // Fallback: count episode links if we couldn't find the episode count
     if (!episodes) {
-      const episodeLinks = $('a[href*="dl-protect.link"][href*="Episode"]').length;
+      const episodeLinks = $('a[href*="dl-protect."][href*="Episode"]').length;
       if (episodeLinks > 0) {
         episodes = episodeLinks;
       }

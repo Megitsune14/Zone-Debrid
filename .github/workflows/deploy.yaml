@@ -1,0 +1,30 @@
+name: rsync, and deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via rsync over SSH
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.KNOWN_HOSTS }}
+          config: ${{ secrets.SSH_CONFIG }}
+      - name: Sync the application with the server
+        run: |
+          rsync -avz ./compose.yaml ${{ secrets.REMOTE_HOST }}:./zone-debrid
+          rsync -avz ./backend/ ${{ secrets.REMOTE_HOST }}:./zone-debrid/backend
+          rsync -avz ./mongo-init.js ${{ secrets.REMOTE_HOST }}:./zone-debrid/mongo-init.js
+        shell: bash
+
+      - name: Build and restart Docker app on remote host
+        run: ssh ${{ secrets.REMOTE_HOST }} 'cd ./zone-debrid && docker compose up -d --build'
+        shell: bash

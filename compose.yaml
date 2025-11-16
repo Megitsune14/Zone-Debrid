@@ -1,0 +1,51 @@
+services:
+  vpn:
+    image: qmcgaw/gluetun
+    container_name: vpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    env_file:
+      - .env.vpn
+    networks:
+      - zone-debrid
+  zone-debrid-backend:
+    build: ./backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.zone-debrid-backend.rule=Host(`api-zone-debrid.megitsune.xyz`)"
+      - "traefik.http.routers.zone-debrid-backend.entrypoints=websecure"
+      - "traefik.http.routers.zone-debrid-backend.service=zone-debrid-backend-service"
+      - "traefik.http.services.zone-debrid-backend-service.loadbalancer.server.port=3000"
+      - "traefik.http.routers.zone-debrid-backend.tls=true"
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./.env:/app/.env
+    networks:
+      - web
+      - zone-debrid
+    depends_on:
+      - database
+  database:
+    image: mongo
+    ports:
+      - 27017:27017
+    command:
+      - --auth
+    env_file:
+      - db.env
+    volumes:
+      - ./data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    restart: unless-stopped
+    networks:
+      - zone-debrid
+
+networks:
+  zone-debrid:
+  web:
+    name: web
+    external: true
