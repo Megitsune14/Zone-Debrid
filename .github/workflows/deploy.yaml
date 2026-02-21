@@ -21,7 +21,7 @@ jobs:
 
       - name: Sync project to server
         run: |
-          rsync -avz ./apps ${{ secrets.REMOTE_HOST }}:./zone-debrid/
+          rsync -avz ./apps/backend ${{ secrets.REMOTE_HOST }}:./zone-debrid/
           rsync -avz ./deploy ${{ secrets.REMOTE_HOST }}:./zone-debrid/
         shell: bash
 
