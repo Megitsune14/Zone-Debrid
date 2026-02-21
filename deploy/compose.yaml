@@ -11,7 +11,7 @@ services:
     networks:
       - zone-debrid
   zone-debrid-backend:
-    build: ../apps/backend
+    build: ../backend
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.zone-debrid-backend.rule=Host(`api-zone-debrid.megitsune.xyz`)"
@@ -36,7 +36,7 @@ services:
     command:
       - --auth
     env_file:
-      - db.env
+      - db.env 
     volumes:
       - ../data:/data/db
       - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
