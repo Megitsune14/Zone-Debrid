@@ -19,6 +19,7 @@ services:
       - "traefik.http.routers.zone-debrid-backend.service=zone-debrid-backend-service"
       - "traefik.http.services.zone-debrid-backend-service.loadbalancer.server.port=3000"
       - "traefik.http.routers.zone-debrid-backend.tls=true"
+      - "traefik.docker.network=web"
     restart: unless-stopped
     volumes:
       - ./.env:/app/.env
