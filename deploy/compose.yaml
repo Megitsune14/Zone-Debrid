@@ -11,7 +11,7 @@ services:
     networks:
       - zone-debrid
   zone-debrid-backend:
-    build: ./backend
+    build: ../apps/backend
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.zone-debrid-backend.rule=Host(`api-zone-debrid.megitsune.xyz`)"
@@ -23,7 +23,7 @@ services:
       - .env
     restart: unless-stopped
     volumes:
-      - ./.env:/app/.env
+      - ../apps/backend/.env:/app/.env
     networks:
       - web
       - zone-debrid
