@@ -297,7 +297,7 @@ const TermsOfServicePage = () => {
           <p className="text-gray-300 leading-relaxed">
             Si vous avez des questions concernant ces conditions d'utilisation, 
             contactez-nous à l'adresse suivante :{' '}
-            <a href="mailto:megitsune14.pro@gmail.com" className="text-primary-400 hover:text-primary-300">
+            <a href="mailto:megitsune14.pro@gmail.com" className="text-brand-primary hover:text-brand-variant">
               megitsune14.pro@gmail.com
             </a>
           </p>

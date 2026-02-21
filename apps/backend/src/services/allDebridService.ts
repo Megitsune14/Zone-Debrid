@@ -5,6 +5,7 @@ import { URL } from 'url';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const API_BASE = "https://api.alldebrid.com/v4";
+const VALIDATION_TIMEOUT_MS = 4000;
 
 const agent = process.env.PROXY_URL && process.env.NODE_ENV === 'production' ? new HttpsProxyAgent(process.env.PROXY_URL) : undefined;
 
@@ -155,45 +156,97 @@ const checkLinkAvailability = async (dlProtectUrl: string, apiKey: string, isCan
 };
 
 /**
- * Validate an AllDebrid API key by making a test request
- * @param {string} apiKey - The API key to validate
- * @returns {Promise<boolean>} True if API key is valid, false otherwise
+ * Vérifie si l'API AllDebrid est joignable (sans valider de clé).
+ * Timeout court pour ne pas bloquer.
  */
-const validateApiKey = async (apiKey: string): Promise<boolean> => {
+export const isAvailable = async (): Promise<boolean> => {
   try {
-    await postForm("/user", {}, apiKey);
-    return true;
-  } catch (error) {
-    Logger.error(`Invalid AllDebrid API key: ${error}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
+    const res = await fetch(`${API_BASE}/`, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Zone-Debrid/1.0' }
+    });
+    clearTimeout(timeout);
+    return res.status < 500;
+  } catch {
     return false;
   }
 };
 
 /**
- * Download a file from AllDebrid as a readable stream
- * @param {string} url - The AllDebrid download URL
- * @param {string} apiKey - AllDebrid API key for authentication
- * @returns {Promise<NodeJS.ReadableStream>} Readable stream of the file
- * @throws {Error} When download fails or HTTP error occurs
+ * Validate an AllDebrid API key by making a test request.
+ * Returns false only for invalid key; throws on network/timeout so caller can return 502.
  */
-const downloadFile = async (url: string, apiKey: string): Promise<NodeJS.ReadableStream> => {
+const validateApiKey = async (apiKey: string): Promise<boolean> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
+  try {
+    const body = new URLSearchParams({});
+    const res = await fetch(`${API_BASE}/user`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body,
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    const data: AllDebridResponse = await res.json();
+    if (data.status === 'success') return true;
+    Logger.error(`AllDebrid API key invalid: ${data.error?.code ?? res.status}`);
+    return false;
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TypeError')) {
+      throw error;
+    }
+    Logger.error(`AllDebrid API key validation error: ${error}`);
+    return false;
+  }
+};
+
+export interface ProxyDownloadResponse {
+  statusCode: number
+  headers: Record<string, string>
+  stream: NodeJS.ReadableStream
+}
+
+/**
+ * Proxy download with HTTP Range support (206 Partial Content).
+ * All requests go through the server so client IP is never sent to the provider.
+ * @param url - The AllDebrid download URL
+ * @param apiKey - AllDebrid API key
+ * @param range - Optional Range header value (e.g. "bytes=0-1023")
+ * @returns Response with statusCode, headers to forward, and body stream
+ */
+const proxyDownloadWithRange = async (
+  url: string,
+  apiKey: string,
+  range?: string
+): Promise<ProxyDownloadResponse> => {
   return new Promise((resolve, reject) => {
     try {
-      Logger.info(`Downloading file from AllDebrid: ${url}`);
-      
       const parsedUrl = new URL(url);
       const isHttps = parsedUrl.protocol === 'https:';
       const httpModule = isHttps ? https : http;
-      
+
+      const requestHeaders: Record<string, string> = {
+        'Authorization': `Bearer ${apiKey}`,
+        'User-Agent': 'Zone-Debrid/1.0'
+      };
+      if (range) {
+        requestHeaders['Range'] = range;
+      }
+
       const options = {
         hostname: parsedUrl.hostname,
         port: parsedUrl.port || (isHttps ? 443 : 80),
         path: parsedUrl.pathname + parsedUrl.search,
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'User-Agent': 'Zone-Debrid/1.0'
-        },
+        headers: requestHeaders,
         agent: process.env.NODE_ENV === 'production' ? agent : undefined
       };
 
@@ -202,27 +255,38 @@ const downloadFile = async (url: string, apiKey: string): Promise<NodeJS.Readabl
           reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
           return;
         }
-        
-        resolve(res);
+
+        const forwardHeaders: Record<string, string> = {};
+        const safeHeaders = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
+        for (const name of safeHeaders) {
+          const value = res.headers[name];
+          if (typeof value === 'string') forwardHeaders[name] = value;
+        }
+        resolve({
+          statusCode: res.statusCode || 200,
+          headers: forwardHeaders,
+          stream: res
+        });
       });
 
       req.on('error', (error) => {
-        Logger.error(`Error downloading file from AllDebrid: ${error}`);
+        Logger.error(`Error proxying download from AllDebrid: ${error}`);
         reject(error);
       });
 
       req.end();
     } catch (error) {
-      Logger.error(`Error setting up download from AllDebrid: ${error}`);
+      Logger.error(`Error setting up proxy download: ${error}`);
       reject(error);
     }
   });
 };
 
 const AllDebridService = {
+  isAvailable,
   checkLinkAvailability,
   validateApiKey,
-  downloadFile
+  proxyDownloadWithRange
 };
 
 export default AllDebridService;

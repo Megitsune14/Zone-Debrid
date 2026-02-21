@@ -1,6 +1,7 @@
-import { Request, Response } from 'express'
+import { Request, Response, NextFunction } from 'express'
 import downloadHistoryService from '@/services/downloadHistoryService'
 import Logger from '@/base/Logger'
+import { AppError } from '@/middleware/errorHandler'
 
 /**
  * Get user's download history
@@ -8,7 +9,7 @@ import Logger from '@/base/Logger'
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with download history or error message
  */
-const getUserDownloadHistory = async (req: Request, res: Response) => {
+const getUserDownloadHistory = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user?.id
         const { limit = 50, skip = 0, status } = req.query
@@ -32,13 +33,9 @@ const getUserDownloadHistory = async (req: Request, res: Response) => {
             data: downloadHistory
         })
 
-    } catch (error: any) {
-        Logger.error(`Error getting download history: ${error}`)
-        res.status(500).json({
-            success: false,
-            message: 'Erreur lors de la récupération de l\'historique',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        })
+    } catch (error: unknown) {
+        Logger.error(`Error getting download history: ${error instanceof Error ? error.message : error}`)
+        next(error instanceof Error ? error : new AppError('Erreur lors de la récupération de l\'historique', 500))
     }
 }
 
@@ -48,10 +45,10 @@ const getUserDownloadHistory = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with created download history or error message
  */
-const createDownloadHistory = async (req: Request, res: Response) => {
+const createDownloadHistory = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user?.id
-        const { title, type, language, quality, season, episodes, downloadUrl } = req.body
+        const { title, type, language, quality, season, episodes, downloadUrl, files } = req.body
 
         if (!userId) {
             return res.status(401).json({
@@ -75,7 +72,8 @@ const createDownloadHistory = async (req: Request, res: Response) => {
             quality,
             season,
             episodes,
-            downloadUrl
+            downloadUrl,
+            files: Array.isArray(files) ? files : undefined
         })
 
         res.status(201).json({
@@ -83,13 +81,9 @@ const createDownloadHistory = async (req: Request, res: Response) => {
             data: downloadHistory
         })
 
-    } catch (error: any) {
-        Logger.error(`Error creating download history: ${error}`)
-        res.status(500).json({
-            success: false,
-            message: 'Erreur lors de la création de l\'historique',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        })
+    } catch (error: unknown) {
+        Logger.error(`Error creating download history: ${error instanceof Error ? error.message : error}`)
+        next(error instanceof Error ? error : new AppError('Erreur lors de la création de l\'historique', 500))
     }
 }
 
@@ -99,10 +93,13 @@ const createDownloadHistory = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with updated download history or error message
  */
-const updateDownloadHistory = async (req: Request, res: Response) => {
+const toParamString = (v: string | string[] | undefined): string | undefined =>
+        v === undefined ? undefined : Array.isArray(v) ? v[0] : v;
+
+const updateDownloadHistory = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user?.id
-        const { downloadId } = req.params
+        const downloadId = toParamString(req.params.downloadId)
         const updateData = req.body
 
         if (!userId) {
@@ -111,10 +108,13 @@ const updateDownloadHistory = async (req: Request, res: Response) => {
                 message: 'Utilisateur non authentifié'
             })
         }
+        if (!downloadId) {
+            return res.status(400).json({ success: false, message: 'downloadId requis' })
+        }
 
         const downloadHistory = await downloadHistoryService.updateDownloadHistory(
             downloadId,
-            userId,
+            typeof userId === 'string' ? userId : String(userId),
             updateData
         )
 
@@ -130,13 +130,9 @@ const updateDownloadHistory = async (req: Request, res: Response) => {
             data: downloadHistory
         })
 
-    } catch (error: any) {
-        Logger.error(`Error updating download history: ${error}`)
-        res.status(500).json({
-            success: false,
-            message: 'Erreur lors de la mise à jour de l\'historique',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        })
+    } catch (error: unknown) {
+        Logger.error(`Error updating download history: ${error instanceof Error ? error.message : error}`)
+        next(error instanceof Error ? error : new AppError('Erreur lors de la mise à jour de l\'historique', 500))
     }
 }
 
@@ -146,7 +142,7 @@ const updateDownloadHistory = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with cleared count or error message
  */
-const clearUserDownloadHistory = async (req: Request, res: Response) => {
+const clearUserDownloadHistory = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user?.id
 
@@ -165,13 +161,9 @@ const clearUserDownloadHistory = async (req: Request, res: Response) => {
             data: { clearedCount }
         })
 
-    } catch (error: any) {
-        Logger.error(`Error clearing download history: ${error}`)
-        res.status(500).json({
-            success: false,
-            message: 'Erreur lors de l\'effacement de l\'historique',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        })
+    } catch (error: unknown) {
+        Logger.error(`Error clearing download history: ${error instanceof Error ? error.message : error}`)
+        next(error instanceof Error ? error : new AppError('Erreur lors de l\'effacement de l\'historique', 500))
     }
 }
 
@@ -181,7 +173,7 @@ const clearUserDownloadHistory = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with deleted count or error message
  */
-const deleteUserDownloadHistory = async (req: Request, res: Response) => {
+const deleteUserDownloadHistory = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user?.id
 
@@ -200,13 +192,9 @@ const deleteUserDownloadHistory = async (req: Request, res: Response) => {
             data: { clearedCount }
         })
 
-    } catch (error: any) {
-        Logger.error(`Error clearing download history: ${error}`)
-        res.status(500).json({
-            success: false,
-            message: 'Erreur lors de l\'effacement de l\'historique',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        })
+    } catch (error: unknown) {
+        Logger.error(`Error clearing download history: ${error instanceof Error ? error.message : error}`)
+        next(error instanceof Error ? error : new AppError('Erreur lors de l\'effacement de l\'historique', 500))
     }
 }
 
@@ -216,7 +204,7 @@ const deleteUserDownloadHistory = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with download statistics or error message
  */
-const getUserDownloadStats = async (req: Request, res: Response) => {
+const getUserDownloadStats = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user?.id
 
@@ -234,13 +222,9 @@ const getUserDownloadStats = async (req: Request, res: Response) => {
             data: stats
         })
 
-    } catch (error: any) {
-        Logger.error(`Error getting download stats: ${error}`)
-        res.status(500).json({
-            success: false,
-            message: 'Erreur lors de la récupération des statistiques',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        })
+    } catch (error: unknown) {
+        Logger.error(`Error getting download stats: ${error instanceof Error ? error.message : error}`)
+        next(error instanceof Error ? error : new AppError('Erreur lors de la récupération des statistiques', 500))
     }
 }
 

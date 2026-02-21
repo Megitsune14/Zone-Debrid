@@ -1,4 +1,11 @@
 import { API_CONFIG } from '../config/api'
+import { request } from './httpClient'
+
+export interface DownloadHistoryFile {
+  url: string
+  filename: string
+  fileSize?: number
+}
 
 export interface DownloadHistoryItem {
   _id: string
@@ -17,6 +24,7 @@ export interface DownloadHistoryItem {
   season?: string
   episodes?: string[]
   downloadUrl?: string
+  files?: DownloadHistoryFile[]
   createdAt: string
   updatedAt: string
 }
@@ -39,24 +47,11 @@ const getDownloadHistory = async (options?: {
   status?: string
 }): Promise<DownloadHistoryItem[]> => {
   const params = new URLSearchParams()
-  
   if (options?.limit) params.append('limit', options.limit.toString())
   if (options?.skip) params.append('skip', options.skip.toString())
   if (options?.status) params.append('status', options.status)
-
-  const response = await fetch(`${API_CONFIG.DOWNLOAD_HISTORY_URL}?${params}`, {
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    }
-  })
-  
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.message || 'Failed to get download history')
-  }
-
-  const data = await response.json()
-  return data.data
+  const res = await request<{ data: DownloadHistoryItem[] }>(`${API_CONFIG.DOWNLOAD_HISTORY_URL}?${params}`)
+  return res.data
 }
 
 /**
@@ -70,30 +65,20 @@ const createDownloadHistory = async (data: {
   season?: string
   episodes?: string[]
   downloadUrl?: string
+  files?: DownloadHistoryFile[]
 }): Promise<DownloadHistoryItem> => {
-  const response = await fetch(API_CONFIG.DOWNLOAD_HISTORY_URL, {
+  const res = await request<{ data: DownloadHistoryItem }>(API_CONFIG.DOWNLOAD_HISTORY_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    },
-    body: JSON.stringify(data)
+    body: data
   })
-  
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.message || 'Failed to create download history')
-  }
-
-  const result = await response.json()
-  return result.data
+  return res.data
 }
 
 /**
  * Mettre à jour un enregistrement d'historique de téléchargement
  */
 const updateDownloadHistory = async (
-  downloadId: string, 
+  downloadId: string,
   data: {
     status?: 'downloading' | 'completed' | 'error' | 'cancelled' | 'paused'
     cleared?: boolean
@@ -103,81 +88,39 @@ const updateDownloadHistory = async (
     fileSize?: number
   }
 ): Promise<DownloadHistoryItem> => {
-  const response = await fetch(`${API_CONFIG.DOWNLOAD_HISTORY_URL}/${downloadId}`, {
+  const res = await request<{ data: DownloadHistoryItem }>(`${API_CONFIG.DOWNLOAD_HISTORY_URL}/${downloadId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    },
-    body: JSON.stringify(data)
+    body: data
   })
-  
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.message || 'Failed to update download history')
-  }
-
-  const result = await response.json()
-  return result.data
+  return res.data
 }
 
 /**
  * Effacer l'historique des téléchargements (marquer comme "cleared")
  */
 const clearDownloadHistory = async (): Promise<{ clearedCount: number }> => {
-  const response = await fetch(`${API_CONFIG.DOWNLOAD_HISTORY_URL}/clear`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    }
+  const res = await request<{ data: { clearedCount: number } }>(`${API_CONFIG.DOWNLOAD_HISTORY_URL}/clear`, {
+    method: 'DELETE'
   })
-  
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.message || 'Failed to clear download history')
-  }
-
-  const result = await response.json()
-  return result.data
+  return res.data
 }
 
 /**
  * Marquer tous les téléchargements comme "cleared" (même comportement que clearDownloadHistory)
  */
 const deleteDownloadHistory = async (): Promise<{ clearedCount: number }> => {
-  const response = await fetch(API_CONFIG.DOWNLOAD_HISTORY_URL, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    }
+  const res = await request<{ data: { clearedCount: number } }>(API_CONFIG.DOWNLOAD_HISTORY_URL, {
+    method: 'DELETE'
   })
-  
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.message || 'Failed to clear download history')
-  }
-
-  const result = await response.json()
-  return result.data
+  return res.data
 }
 
 /**
  * Obtenir les statistiques des téléchargements
  */
 const getDownloadStats = async (): Promise<DownloadStats> => {
-  const response = await fetch(`${API_CONFIG.DOWNLOAD_HISTORY_URL}/stats`, {
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    }
-  })
-  
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.message || 'Failed to get download stats')
-  }
-
-  const result = await response.json()
-  return result.data
+  const res = await request<{ data: DownloadStats }>(`${API_CONFIG.DOWNLOAD_HISTORY_URL}/stats`)
+  return res.data
 }
 
 const DownloadHistoryService = {

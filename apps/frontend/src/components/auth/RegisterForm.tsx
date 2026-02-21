@@ -17,7 +17,7 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
-  const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle')
+  const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid' | 'unavailable'>('idle')
   const [apiKeyMessage, setApiKeyMessage] = useState('')
   const { register, isLoading } = useAuth()
 
@@ -32,16 +32,25 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
     const timeoutId = setTimeout(async () => {
       setApiKeyStatus('validating')
       setApiKeyMessage('Validation de la clé API...')
-      
+
       try {
         await authService.validateAllDebridApiKey(formData.allDebridApiKey)
         setApiKeyStatus('valid')
         setApiKeyMessage('Clé API valide')
-      } catch (error: any) {
-        setApiKeyStatus('invalid')
-        setApiKeyMessage(error.message || 'Clé API invalide')
+      } catch (err: unknown) {
+        const error = err as Error & { code?: string }
+        if (error.code === 'ALLDEBRID_UNAVAILABLE') {
+          setApiKeyStatus('unavailable')
+          setApiKeyMessage('Service AllDebrid temporairement indisponible. Réessayez dans quelques minutes.')
+        } else if (error.code === 'NETWORK_ERROR') {
+          setApiKeyStatus('unavailable')
+          setApiKeyMessage('Erreur de connexion temporaire. Réessayez.')
+        } else {
+          setApiKeyStatus('invalid')
+          setApiKeyMessage(error.message || 'Clé API invalide')
+        }
       }
-    }, 1000) // Debounce de 1 seconde
+    }, 1000)
 
     return () => clearTimeout(timeoutId)
   }, [formData.allDebridApiKey])
@@ -75,12 +84,12 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
     }
 
     if (apiKeyStatus === 'invalid') {
-      setError('Veuillez fournir une clé API AllDebrid valide')
+      setError('Veuillez fournir une clé API AllDebrid valide.')
       return
     }
 
     if (apiKeyStatus === 'validating') {
-      setError('Veuillez attendre la validation de la clé API')
+      setError('Veuillez attendre la validation de la clé API.')
       return
     }
 
@@ -90,8 +99,15 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
         password: formData.password,
         allDebridApiKey: formData.allDebridApiKey
       })
-    } catch (error: any) {
-      setError(error.message)
+    } catch (err: unknown) {
+      const error = err as Error & { code?: string }
+      if (error.code === 'ALLDEBRID_UNAVAILABLE') {
+        setError('Le service AllDebrid est temporairement indisponible. Veuillez réessayer dans quelques minutes.')
+      } else if (error.code === 'NETWORK_ERROR') {
+        setError('Erreur de connexion temporaire. Veuillez réessayer.')
+      } else {
+        setError(error.message || 'Une erreur est survenue lors de l\'inscription.')
+      }
     }
   }
 
@@ -199,8 +215,9 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
               onChange={handleChange}
               required
               className={`input-field w-full pr-10 ${
-                apiKeyStatus === 'valid' ? 'border-green-500' : 
-                apiKeyStatus === 'invalid' ? 'border-red-500' : ''
+                apiKeyStatus === 'valid' ? 'border-green-500' : ''
+              } ${apiKeyStatus === 'invalid' ? 'border-red-500' : ''} ${
+                apiKeyStatus === 'unavailable' ? 'border-amber-500/50' : ''
               }`}
               placeholder="Votre clé API AllDebrid"
               disabled={isLoading}
@@ -217,15 +234,17 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
           </div>
           {apiKeyMessage && (
             <p className={`text-xs mt-1 ${
-              apiKeyStatus === 'valid' ? 'text-green-400' : 
-              apiKeyStatus === 'invalid' ? 'text-red-400' : 
-              'text-blue-400'
+              apiKeyStatus === 'valid' ? 'text-green-400' : ''
+            } ${apiKeyStatus === 'invalid' ? 'text-red-400' : ''} ${
+              apiKeyStatus === 'unavailable' ? 'text-amber-400' : ''
+            } ${apiKeyStatus === 'validating' ? 'text-blue-400' : ''} ${
+              apiKeyStatus === 'idle' ? 'text-blue-400' : ''
             }`}>
               {apiKeyMessage}
             </p>
           )}
           <p className="text-xs text-gray-500 mt-1">
-            Obtenez votre clé sur <a href="https://alldebrid.com" target="_blank" rel="noopener noreferrer" className="text-primary-400 hover:text-primary-300">alldebrid.com</a>
+            Obtenez votre clé sur <a href="https://alldebrid.com" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:text-brand-variant">alldebrid.com</a>
           </p>
         </div>
 
@@ -250,7 +269,7 @@ const RegisterForm = ({ onSwitchToLogin }: RegisterFormProps) => {
           Déjà un compte ?{' '}
           <button
             onClick={onSwitchToLogin}
-            className="text-primary-400 hover:text-primary-300 font-medium"
+            className="text-brand-primary hover:text-brand-variant font-medium"
             disabled={isLoading}
           >
             Se connecter

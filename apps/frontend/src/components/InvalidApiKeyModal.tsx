@@ -47,7 +47,7 @@ const InvalidApiKeyModal = ({ isOpen, onClose, message }: InvalidApiKeyModalProp
             />
 
             {/* Modal */}
-            <div className="relative bg-dark-800 border border-red-500/20 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div className="relative panel-glass border border-red-500/30 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl">
                 {/* Bouton de fermeture */}
                 <button
                     onClick={onClose}
@@ -99,7 +99,7 @@ const InvalidApiKeyModal = ({ isOpen, onClose, message }: InvalidApiKeyModalProp
                             href="https://alldebrid.com"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary-400 hover:text-primary-300 underline"
+                            className="text-brand-primary hover:text-brand-variant underline"
                         >
                             Obtenez votre clé sur AllDebrid
                         </a>

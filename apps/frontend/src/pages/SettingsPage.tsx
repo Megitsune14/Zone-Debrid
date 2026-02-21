@@ -417,7 +417,7 @@ const SettingsPage = () => {
                 </p>
               )}
               <p className="text-xs text-gray-500 mt-1">
-                Obtenez votre clé sur <a href="https://alldebrid.com" target="_blank" rel="noopener noreferrer" className="text-primary-400 hover:text-primary-300">alldebrid.com</a>
+                Obtenez votre clé sur <a href="https://alldebrid.com" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:text-brand-variant">alldebrid.com</a>
               </p>
             </div>
 

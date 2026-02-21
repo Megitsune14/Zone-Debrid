@@ -5,10 +5,13 @@ export type ContentType = 'all' | 'films' | 'series' | 'mangas'
 
 interface SearchBarProps {
   onSearch: (query: string, contentType: ContentType, year?: number) => void
+  onCancel?: () => void
   isSearching: boolean
+  disabled?: boolean
 }
 
-const SearchBar = ({ onSearch, isSearching }: SearchBarProps) => {
+const SearchBar = ({ onSearch, onCancel, isSearching, disabled = false }: SearchBarProps) => {
+  const isDisabled = disabled || isSearching
   const [query, setQuery] = useState('')
   const [contentType, setContentType] = useState<ContentType>('all')
   const [year, setYear] = useState<number | undefined>(undefined)
@@ -36,7 +39,7 @@ const SearchBar = ({ onSearch, isSearching }: SearchBarProps) => {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Rechercher un film, une série ou un anime..."
               className="input-field w-full pl-10 pr-4"
-              disabled={isSearching}
+              disabled={isDisabled}
             />
           </div>
           
@@ -48,7 +51,7 @@ const SearchBar = ({ onSearch, isSearching }: SearchBarProps) => {
                 value={contentType}
                 onChange={(e) => setContentType(e.target.value as ContentType)}
                 className="input-field w-full md:min-w-[120px]"
-                disabled={isSearching}
+                disabled={isDisabled}
               >
                 <option value="all">Tous</option>
                 <option value="films">Films</option>
@@ -63,7 +66,7 @@ const SearchBar = ({ onSearch, isSearching }: SearchBarProps) => {
                 value={year || ''}
                 onChange={(e) => setYear(e.target.value ? parseInt(e.target.value, 10) : undefined)}
                 className="input-field w-full md:min-w-[100px]"
-                disabled={isSearching}
+                disabled={isDisabled}
               >
                 <option value="">Toutes années</option>
                 {yearOptions.map((yearOption) => (
@@ -75,13 +78,26 @@ const SearchBar = ({ onSearch, isSearching }: SearchBarProps) => {
             </div>
           </div>
           
-          <button
-            type="submit"
-            disabled={isSearching || !query.trim()}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto"
-          >
-            {isSearching ? 'Recherche...' : 'Rechercher'}
-          </button>
+          {isSearching && onCancel ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                onCancel()
+              }}
+              className="btn-secondary w-full md:w-auto"
+            >
+              Annuler
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={isDisabled || !query.trim()}
+              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto"
+            >
+              Rechercher
+            </button>
+          )}
         </div>
       </form>
     </div>

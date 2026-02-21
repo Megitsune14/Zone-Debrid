@@ -1,5 +1,11 @@
 import mongoose, { Schema, Document } from 'mongoose'
 
+export interface IDownloadHistoryFile {
+  url: string
+  filename: string
+  fileSize?: number
+}
+
 export interface IDownloadHistory extends Document {
   userId: mongoose.Types.ObjectId
   title: string
@@ -16,6 +22,8 @@ export interface IDownloadHistory extends Document {
   season?: string
   episodes?: string[]
   downloadUrl?: string
+  /** Fichiers du téléchargement (URL débridée + nom d’affichage) pour la page Téléchargements */
+  files?: IDownloadHistoryFile[]
   createdAt: Date
   updatedAt: Date
 }
@@ -83,7 +91,12 @@ const DownloadHistorySchema = new Schema<IDownloadHistory>({
   }],
   downloadUrl: {
     type: String
-  }
+  },
+  files: [{
+    url: { type: String, required: true },
+    filename: { type: String, required: true },
+    fileSize: { type: Number }
+  }]
 }, {
   timestamps: true
 })

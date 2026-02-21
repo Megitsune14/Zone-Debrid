@@ -282,12 +282,19 @@ const isTypeMatch = (hrefType: string, targetType: string): boolean => {
   return accepted.includes(hrefType.toLowerCase());
 };
 
+const abortError = new DOMException('Aborted', 'AbortError');
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError;
+}
+
 // Extraction du nombre total de pages
-const extractTotalPages = async (url: string): Promise<number> => {
+const extractTotalPages = async (url: string, signal?: AbortSignal): Promise<number> => {
   try {
+    throwIfAborted(signal);
     Logger.debug(`Extracting total pages from: ${url}`);
-    
+
     const response = await fetch(url, {
+      signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -326,17 +333,20 @@ const extractTotalPages = async (url: string): Promise<number> => {
     Logger.debug(`Found ${maxPage} total pages`);
     return maxPage;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
     Logger.error(`Error extracting total pages: ${error}`);
     return 1;
   }
 };
 
 // Scraping d'une page de résultats
-const scrapePageResults = async (url: string, type: string, query: string): Promise<RawSearchItem[]> => {
+const scrapePageResults = async (url: string, type: string, query: string, signal?: AbortSignal): Promise<RawSearchItem[]> => {
   try {
+    throwIfAborted(signal);
     Logger.debug(`Scraping page: ${url}`);
-    
+
     const response = await fetch(url, {
+      signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -402,17 +412,20 @@ const scrapePageResults = async (url: string, type: string, query: string): Prom
     Logger.debug(`Found ${results.length} results on page`);
     return results;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
     Logger.error(`Error scraping page: ${error}`);
     return [];
   }
 };
 
 // Scraping de tous les détails d'un film
-const scrapeFilmDetails = async (item: RawSearchItem, query: string): Promise<FilmDetails> => {
+const scrapeFilmDetails = async (item: RawSearchItem, query: string, signal?: AbortSignal): Promise<FilmDetails> => {
   try {
+    throwIfAborted(signal);
     Logger.debug(`Scraping details for: ${item.title}`);
-    
+
     const response = await fetch(item.link, {
+      signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -514,6 +527,7 @@ const scrapeFilmDetails = async (item: RawSearchItem, query: string): Promise<Fi
       relevanceScore: calculateRelevanceScore(query, item.title)
     };
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
     Logger.error(`Error scraping film details: ${error}`);
     return {
       title: item.title,
@@ -591,9 +605,11 @@ const consolidateSimilarFilms = (films: FilmDetails[]): ConsolidatedFilm[] => {
 };
 
 // Extraction des détails d'une saison (nombre d'épisodes et taille des fichiers)
-const extractSeasonDetails = async (link: string): Promise<{ episodes?: number; fileSize?: string }> => {
+const extractSeasonDetails = async (link: string, signal?: AbortSignal): Promise<{ episodes?: number; fileSize?: string }> => {
   try {
+    throwIfAborted(signal);
     const response = await fetch(link, {
+      signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -642,15 +658,18 @@ const extractSeasonDetails = async (link: string): Promise<{ episodes?: number; 
     
     return { episodes, fileSize };
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
     Logger.error(`Error extracting season details: ${error}`);
     return {};
   }
 };
 
 // Extraction de l'année de production depuis une page de détail de saison
-const extractReleaseDateFromDetailPage = async (link: string): Promise<string | undefined> => {
+const extractReleaseDateFromDetailPage = async (link: string, signal?: AbortSignal): Promise<string | undefined> => {
   try {
+    throwIfAborted(signal);
     const response = await fetch(link, {
+      signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -690,6 +709,7 @@ const extractReleaseDateFromDetailPage = async (link: string): Promise<string | 
     
     return year;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
     Logger.error(`extractReleaseDateFromDetailPage error: ${error}`);
     return undefined;
   }
@@ -717,11 +737,13 @@ const pickSeasonOneLink = (details: any): string | undefined => {
 };
 
 // Scraping des détails pour les séries et mangas
-const scrapeSeriesDetails = async (item: RawSearchItem, query: string): Promise<SeriesDetails> => {
+const scrapeSeriesDetails = async (item: RawSearchItem, query: string, signal?: AbortSignal): Promise<SeriesDetails> => {
   try {
+    throwIfAborted(signal);
     Logger.debug(`Scraping series details for: ${item.title}`);
-    
+
     const response = await fetch(item.link, {
+      signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -829,7 +851,7 @@ const scrapeSeriesDetails = async (item: RawSearchItem, query: string): Promise<
         
         for (const qual of qualities) {
           const entry = season.versions[lang][qual];
-          const promise = extractSeasonDetails(entry.link)
+          const promise = extractSeasonDetails(entry.link, signal)
             .then(details => {
               // Définir les épisodes une fois par saison (préférer le plus élevé détecté)
               if (details.episodes) {
@@ -873,11 +895,12 @@ const scrapeSeriesDetails = async (item: RawSearchItem, query: string): Promise<
       description = synopsisImg.parent().find('em').first().text().trim() || undefined;
     }
     
+    throwIfAborted(signal);
     // Extraction de l'année de production depuis la saison 1
     let release_date: string | undefined;
     const seasonOneLink = pickSeasonOneLink(sortedSeasons);
     if (seasonOneLink) {
-      release_date = await extractReleaseDateFromDetailPage(seasonOneLink);
+      release_date = await extractReleaseDateFromDetailPage(seasonOneLink, signal);
     }
     
     const cleanTitle = stripSeason(item.title);
@@ -893,6 +916,7 @@ const scrapeSeriesDetails = async (item: RawSearchItem, query: string): Promise<
       relevanceScore: calculateRelevanceScore(query, cleanTitle)
     };
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
     Logger.error(`Error scraping series details: ${error}`);
     return {
       title: stripSeason(item.title), // Tronquer le titre pour retirer " - Saison X"
@@ -977,35 +1001,35 @@ const consolidateSimilarSeries = (series: SeriesDetails[]): ConsolidatedSeries[]
 };
 
 // Fonction principale de recherche de films
-const searchFilms = async (query: string, year?: number): Promise<SearchResult> => {
+const searchFilms = async (query: string, year?: number, signal?: AbortSignal): Promise<SearchResult> => {
+  throwIfAborted(signal);
   Logger.info(`Starting comprehensive film search for: "${query}"${year ? ` (year: ${year})` : ''}`);
-  
+
   try {
-    // 1. Construire l'URL de base
     let baseSearchUrl = `${baseUrl}?p=films&search=${encodeURIComponent(query)}`;
     if (year) {
       baseSearchUrl += `&year=${year}`;
     }
-    
-    // 2. Obtenir le nombre total de pages
-    const totalPages = await extractTotalPages(baseSearchUrl);
+
+    const totalPages = await extractTotalPages(baseSearchUrl, signal);
+    throwIfAborted(signal);
     Logger.info(`Found ${totalPages} pages to scrape`);
-    
-    // 3. Scraper toutes les pages en parallèle
+
     const pagePromises: Promise<RawSearchItem[]>[] = [];
     for (let page = 1; page <= totalPages; page++) {
       const pageUrl = page === 1 ? baseSearchUrl : `${baseSearchUrl}&page=${page}`;
-      pagePromises.push(scrapePageResults(pageUrl, 'films', query));
+      pagePromises.push(scrapePageResults(pageUrl, 'films', query, signal));
     }
-    
+
     const pageResults = await Promise.all(pagePromises);
+    throwIfAborted(signal);
     const allRawResults = pageResults.flat();
-    
+
     Logger.info(`Found ${allRawResults.length} total raw results across all pages`);
-    
-    // 4. Scraper les détails de tous les films en parallèle
-    const detailPromises = allRawResults.map(item => scrapeFilmDetails(item, query));
+
+    const detailPromises = allRawResults.map(item => scrapeFilmDetails(item, query, signal));
     const filmDetails = await Promise.all(detailPromises);
+    throwIfAborted(signal);
     
     Logger.info(`Scraped details for ${filmDetails.length} films`);
     
@@ -1015,8 +1039,14 @@ const searchFilms = async (query: string, year?: number): Promise<SearchResult> 
     Logger.info(`Consolidated into ${consolidatedFilms.length} unique films`);
     
     // 6. Trier par pertinence
-    consolidatedFilms.sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
+    consolidatedFilms.sort((a, b) => {
+      const scoreDiff = b.relevanceScore - a.relevanceScore;
+      if (scoreDiff !== 0) return scoreDiff;
+      const yearA = a.release_date ? parseInt(a.release_date, 10) : 0;
+      const yearB = b.release_date ? parseInt(b.release_date, 10) : 0;
+      return yearB - yearA; // plus récent → plus ancien
+    });
+
     return {
       type: 'films',
       results: consolidatedFilms
@@ -1028,35 +1058,35 @@ const searchFilms = async (query: string, year?: number): Promise<SearchResult> 
 };
 
 // Fonctions de recherche pour les séries et mangas
-const searchSeries = async (query: string, year?: number): Promise<SearchResult> => {
+const searchSeries = async (query: string, year?: number, signal?: AbortSignal): Promise<SearchResult> => {
+  throwIfAborted(signal);
   Logger.info(`Starting comprehensive series search for: "${query}"${year ? ` (year: ${year})` : ''}`);
-  
+
   try {
-    // 1. Construire l'URL de base
     let baseSearchUrl = `${baseUrl}?p=series&search=${encodeURIComponent(query)}`;
     if (year) {
       baseSearchUrl += `&year=${year}`;
     }
-    
-    // 2. Obtenir le nombre total de pages
-    const totalPages = await extractTotalPages(baseSearchUrl);
+
+    const totalPages = await extractTotalPages(baseSearchUrl, signal);
+    throwIfAborted(signal);
     Logger.info(`Found ${totalPages} pages to scrape for series`);
-    
-    // 3. Scraper toutes les pages en parallèle
+
     const pagePromises: Promise<RawSearchItem[]>[] = [];
     for (let page = 1; page <= totalPages; page++) {
       const pageUrl = page === 1 ? baseSearchUrl : `${baseSearchUrl}&page=${page}`;
-      pagePromises.push(scrapePageResults(pageUrl, 'series', query));
+      pagePromises.push(scrapePageResults(pageUrl, 'series', query, signal));
     }
-    
+
     const pageResults = await Promise.all(pagePromises);
+    throwIfAborted(signal);
     const allRawResults = pageResults.flat();
-    
+
     Logger.info(`Found ${allRawResults.length} total raw results across all pages for series`);
-    
-    // 4. Scraper les détails de toutes les séries en parallèle
-    const detailPromises = allRawResults.map(item => scrapeSeriesDetails(item, query));
+
+    const detailPromises = allRawResults.map(item => scrapeSeriesDetails(item, query, signal));
     const seriesDetails = await Promise.all(detailPromises);
+    throwIfAborted(signal);
     
     Logger.info(`Scraped details for ${seriesDetails.length} series`);
     
@@ -1066,8 +1096,14 @@ const searchSeries = async (query: string, year?: number): Promise<SearchResult>
     Logger.info(`Consolidated into ${consolidatedSeries.length} unique series`);
     
     // 6. Trier par pertinence
-    consolidatedSeries.sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
+    consolidatedSeries.sort((a, b) => {
+      const scoreDiff = b.relevanceScore - a.relevanceScore;
+      if (scoreDiff !== 0) return scoreDiff;
+      const yearA = a.release_date ? parseInt(a.release_date, 10) : 0;
+      const yearB = b.release_date ? parseInt(b.release_date, 10) : 0;
+      return yearB - yearA; // plus récent → plus ancien
+    });
+
     return {
       type: 'series',
       results: consolidatedSeries
@@ -1078,35 +1114,35 @@ const searchSeries = async (query: string, year?: number): Promise<SearchResult>
   }
 };
 
-const searchMangas = async (query: string, year?: number): Promise<SearchResult> => {
+const searchMangas = async (query: string, year?: number, signal?: AbortSignal): Promise<SearchResult> => {
+  throwIfAborted(signal);
   Logger.info(`Starting comprehensive mangas search for: "${query}"${year ? ` (year: ${year})` : ''}`);
-  
+
   try {
-    // 1. Construire l'URL de base
     let baseSearchUrl = `${baseUrl}?p=mangas&search=${encodeURIComponent(query)}`;
     if (year) {
       baseSearchUrl += `&year=${year}`;
     }
-    
-    // 2. Obtenir le nombre total de pages
-    const totalPages = await extractTotalPages(baseSearchUrl);
+
+    const totalPages = await extractTotalPages(baseSearchUrl, signal);
+    throwIfAborted(signal);
     Logger.info(`Found ${totalPages} pages to scrape for mangas`);
-    
-    // 3. Scraper toutes les pages en parallèle
+
     const pagePromises: Promise<RawSearchItem[]>[] = [];
     for (let page = 1; page <= totalPages; page++) {
       const pageUrl = page === 1 ? baseSearchUrl : `${baseSearchUrl}&page=${page}`;
-      pagePromises.push(scrapePageResults(pageUrl, 'mangas', query));
+      pagePromises.push(scrapePageResults(pageUrl, 'mangas', query, signal));
     }
-    
+
     const pageResults = await Promise.all(pagePromises);
+    throwIfAborted(signal);
     const allRawResults = pageResults.flat();
-    
+
     Logger.info(`Found ${allRawResults.length} total raw results across all pages for mangas`);
-    
-    // 4. Scraper les détails de tous les mangas en parallèle (même logique que les séries)
-    const detailPromises = allRawResults.map(item => scrapeSeriesDetails(item, query));
+
+    const detailPromises = allRawResults.map(item => scrapeSeriesDetails(item, query, signal));
     const mangaDetails = await Promise.all(detailPromises);
+    throwIfAborted(signal);
     
     Logger.info(`Scraped details for ${mangaDetails.length} mangas`);
     
@@ -1116,8 +1152,14 @@ const searchMangas = async (query: string, year?: number): Promise<SearchResult>
     Logger.info(`Consolidated into ${consolidatedMangas.length} unique mangas`);
     
     // 6. Trier par pertinence
-    consolidatedMangas.sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
+    consolidatedMangas.sort((a, b) => {
+      const scoreDiff = b.relevanceScore - a.relevanceScore;
+      if (scoreDiff !== 0) return scoreDiff;
+      const yearA = a.release_date ? parseInt(a.release_date, 10) : 0;
+      const yearB = b.release_date ? parseInt(b.release_date, 10) : 0;
+      return yearB - yearA; // plus récent → plus ancien
+    });
+
     return {
       type: 'mangas',
       results: consolidatedMangas
@@ -1128,14 +1170,16 @@ const searchMangas = async (query: string, year?: number): Promise<SearchResult>
   }
 };
 
-const searchAll = async (query: string, year?: number): Promise<SearchResult[]> => {
+const searchAll = async (query: string, year?: number, signal?: AbortSignal): Promise<SearchResult[]> => {
+  throwIfAborted(signal);
   Logger.info(`Starting comprehensive search for: "${query}"${year ? ` (year: ${year})` : ''}`);
-  
+
   const results = await Promise.all([
-    searchFilms(query, year),
-    searchSeries(query, year),
-    searchMangas(query, year)
+    searchFilms(query, year, signal),
+    searchSeries(query, year, signal),
+    searchMangas(query, year, signal)
   ]);
+  throwIfAborted(signal);
   
   Logger.success(`Search completed for: "${query}"${year ? ` (year: ${year})` : ''}`);
   return results;

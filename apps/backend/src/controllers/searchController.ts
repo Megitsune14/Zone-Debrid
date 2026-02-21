@@ -1,8 +1,9 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import scrapingService from '@/services/ScrapingService';
 import Logger from '@/base/Logger';
 import ZTUrl from '@/models/ZTUrl';
 import allDebridService from '@/services/allDebridService';
+import { AppError } from '@/middleware/errorHandler';
 import * as cheerio from 'cheerio';
 
 /**
@@ -90,7 +91,8 @@ const checkAndUpdateSiteUrl = async (): Promise<void> => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with search results or error message
  */
-const searchAll = async (req: Request, res: Response) => {
+const searchAll = async (req: Request, res: Response, next: NextFunction) => {
+  let cleanup: (() => void) | undefined;
   try {
     // Vérifier la clé API AllDebrid de l'utilisateur
     const user = req.user;
@@ -165,27 +167,39 @@ const searchAll = async (req: Request, res: Response) => {
     }
 
     Logger.info(`Search request received for: "${query}"${contentType ? ` (type: ${contentType})` : ''}${filterYear ? ` (year: ${filterYear})` : ''}`);
-    
+
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
+    const onClose = () => {
+      abortController.abort();
+    };
+    req.once('close', onClose);
+    res.once('close', onClose);
+
+    cleanup = () => {
+      req.off('close', onClose);
+      res.off('close', onClose);
+    };
+
     let results;
-    
+
     if (contentType) {
-      // Search specific content type
       switch (contentType) {
         case 'films':
-          results = [await scrapingService.searchFilms(query.trim(), filterYear)];
+          results = [await scrapingService.searchFilms(query.trim(), filterYear, signal)];
           break;
         case 'series':
-          results = [await scrapingService.searchSeries(query.trim(), filterYear)];
+          results = [await scrapingService.searchSeries(query.trim(), filterYear, signal)];
           break;
         case 'mangas':
-          results = [await scrapingService.searchMangas(query.trim(), filterYear)];
+          results = [await scrapingService.searchMangas(query.trim(), filterYear, signal)];
           break;
         default:
-          results = await scrapingService.searchAll(query.trim(), filterYear);
+          results = await scrapingService.searchAll(query.trim(), filterYear, signal);
       }
     } else {
-      // Search all content types
-      results = await scrapingService.searchAll(query.trim(), filterYear);
+      results = await scrapingService.searchAll(query.trim(), filterYear, signal);
     }
     
     Logger.success(`Search completed successfully for: "${query}"${contentType ? ` (type: ${contentType})` : ''}${filterYear ? ` (year: ${filterYear})` : ''}`);
@@ -199,16 +213,16 @@ const searchAll = async (req: Request, res: Response) => {
     
     return res.json(response);
 
-  } catch (error: any) {
-    Logger.error(`Search controller error: ${error}`);
-    
-    const errorResponse: SearchErrorResponse = {
-      success: false,
-      message: 'Internal server error during search',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    };
-    
-    return res.status(500).json(errorResponse);
+  } catch (error: unknown) {
+    const isAbort = error instanceof Error && error.name === 'AbortError'
+      || (error && typeof error === 'object' && (error as { errorCode?: string }).errorCode === 'ABORTED');
+    if (isAbort) {
+      return next(new AppError('Recherche annulée', 499, 'ABORTED'));
+    }
+    Logger.error(`Search controller error: ${error instanceof Error ? error.message : error}`);
+    next(error instanceof Error ? error : new AppError('Internal server error during search', 500, 'SEARCH'));
+  } finally {
+    cleanup?.();
   }
 };
 
@@ -234,7 +248,7 @@ const healthCheck = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with site status data or error message
  */
-const getSiteStatus = async (req: Request, res: Response) => {
+const getSiteStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const ztConfig = await ZTUrl.findOne();
     
@@ -259,16 +273,9 @@ const getSiteStatus = async (req: Request, res: Response) => {
     };
     
     return res.json(response);
-  } catch (error: any) {
-    Logger.error(`Site status error: ${error.message}`);
-    
-    const errorResponse: SiteErrorResponse = {
-      success: false,
-      message: 'Impossible de récupérer le statut de Zone Téléchargement',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    };
-    
-    return res.status(500).json(errorResponse);
+  } catch (error: unknown) {
+    Logger.error(`Site status error: ${error instanceof Error ? error.message : error}`);
+    next(error instanceof Error ? error : new AppError('Impossible de récupérer le statut de Zone Téléchargement', 500, 'SITE_STATUS'));
   }
 };
 

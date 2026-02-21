@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import { FiUsers, FiDownload, FiCheckCircle, FiXCircle, FiEye, FiEyeOff, FiLock, FiBarChart, FiActivity, FiGlobe, FiClock, FiArchive } from 'react-icons/fi'
+import { useState, useEffect, useCallback } from 'react'
+import { FiUsers, FiDownload, FiCheckCircle, FiXCircle, FiEye, FiEyeOff, FiLock, FiBarChart, FiActivity, FiGlobe, FiClock, FiArchive, FiHardDrive } from 'react-icons/fi'
 import { useAuth } from '../contexts/AuthContext'
-import metricsService from '../services/metricsService'
+import metricsService, { type DownloadListItem } from '../services/metricsService'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 interface MetricsData {
@@ -15,6 +15,8 @@ interface MetricsData {
         error: number
         cancelled: number
         cleared: number
+        last24h?: number
+        totalVolumeBytes?: number
         byType: Array<{ _id: string; count: number }>
         byDay: Array<{ _id: string; count: number }>
     }
@@ -26,6 +28,32 @@ interface MetricsData {
         responseTime: number
         isHealthy: boolean
     } | null
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  downloading: 'En cours',
+  completed: 'Terminé',
+  error: 'Erreur',
+  cancelled: 'Annulé',
+  paused: 'En pause'
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  films: 'Films',
+  series: 'Séries',
+  mangas: 'Mangas'
+}
+
+function formatBytes (bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} Go`
+}
+
+function formatDate (dateStr: string): string {
+  const d = new Date(dateStr)
+  return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 const MetricsPage = () => {
@@ -42,6 +70,20 @@ const MetricsPage = () => {
     const [metrics, setMetrics] = useState<MetricsData | null>(null)
     const [loading, setLoading] = useState(false)
 
+    // État pour la table "Tous les téléchargements"
+    const [downloadsList, setDownloadsList] = useState<DownloadListItem[]>([])
+    const [downloadsTotal, setDownloadsTotal] = useState(0)
+    const [downloadsPage, setDownloadsPage] = useState(1)
+    const [downloadsLimit, setDownloadsLimit] = useState(20)
+    const [downloadsTotalPages, setDownloadsTotalPages] = useState(0)
+    const [downloadsLoading, setDownloadsLoading] = useState(false)
+    const [downloadsSortBy, setDownloadsSortBy] = useState('createdAt')
+    const [downloadsSortOrder, setDownloadsSortOrder] = useState<'asc' | 'desc'>('desc')
+    const [downloadsFilterStatus, setDownloadsFilterStatus] = useState('')
+    const [downloadsFilterType, setDownloadsFilterType] = useState('')
+    const [downloadsSearch, setDownloadsSearch] = useState('')
+    const [downloadsSearchInput, setDownloadsSearchInput] = useState('')
+
     // Vérifier si l'utilisateur est Megitsune
     const isMegitsune = user?.username === 'megitsune'
 
@@ -50,6 +92,35 @@ const MetricsPage = () => {
             fetchMetrics()
         }
     }, [isMegitsune, isAuthenticated])
+
+  const fetchDownloadsList = useCallback(async () => {
+    if (!isMegitsune || !isAuthenticated) return
+    setDownloadsLoading(true)
+    try {
+      const res = await metricsService.getDownloadsList({
+        page: downloadsPage,
+        limit: downloadsLimit,
+        sortBy: downloadsSortBy,
+        sortOrder: downloadsSortOrder,
+        ...(downloadsFilterStatus && { status: downloadsFilterStatus }),
+        ...(downloadsFilterType && { type: downloadsFilterType }),
+        ...(downloadsSearch && { search: downloadsSearch })
+      })
+      setDownloadsList(res.data)
+      setDownloadsTotal(res.total)
+      setDownloadsTotalPages(res.totalPages)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setDownloadsLoading(false)
+    }
+  }, [isMegitsune, isAuthenticated, downloadsPage, downloadsLimit, downloadsSortBy, downloadsSortOrder, downloadsFilterStatus, downloadsFilterType, downloadsSearch])
+
+  useEffect(() => {
+    if (isMegitsune && isAuthenticated) {
+      fetchDownloadsList()
+    }
+  }, [isMegitsune, isAuthenticated, fetchDownloadsList])
 
   const fetchMetrics = async () => {
     setLoading(true)
@@ -170,7 +241,7 @@ const MetricsPage = () => {
         return (
             <div className="max-w-2xl mx-auto">
                 <div className="mb-8 text-center">
-                    <FiBarChart className="h-12 w-12 text-primary-400 mx-auto mb-4" />
+                    <FiBarChart className="h-12 w-12 text-brand-primary mx-auto mb-4" />
                     <h1 className="text-3xl font-bold text-white mb-2">Métriques</h1>
                     <p className="text-gray-400">Accédez aux métriques de l'application avec votre mot de passe maître</p>
                 </div>
@@ -340,7 +411,7 @@ const MetricsPage = () => {
 
             {loading ? (
                 <div className="text-center py-12">
-                    <FiActivity className="h-8 w-8 animate-spin text-primary-400 mx-auto mb-4" />
+                    <FiActivity className="h-8 w-8 animate-spin text-brand-primary mx-auto mb-4" />
                     <p className="text-gray-400">Chargement des métriques...</p>
                 </div>
             ) : metrics ? (
@@ -381,7 +452,7 @@ const MetricsPage = () => {
                                 <div>
                                     <p className="text-sm text-gray-400">Terminés</p>
                                     <p className="text-2xl font-bold text-white">{metrics.downloads.completed}</p>
-                                    <p className="text-xs text-green-400">{Math.round((metrics.downloads.completed / metrics.downloads.total) * 100)}%</p>
+                                    <p className="text-xs text-green-400">{metrics.downloads.total > 0 ? `${Math.round((metrics.downloads.completed / metrics.downloads.total) * 100)}%` : '—'}</p>
                                 </div>
                             </div>
                         </div>
@@ -394,7 +465,7 @@ const MetricsPage = () => {
                                 <div>
                                     <p className="text-sm text-gray-400">Erreurs</p>
                                     <p className="text-2xl font-bold text-white">{metrics.downloads.error}</p>
-                                    <p className="text-xs text-red-400">{Math.round((metrics.downloads.error / metrics.downloads.total) * 100)}%</p>
+                                    <p className="text-xs text-red-400">{metrics.downloads.total > 0 ? `${Math.round((metrics.downloads.error / metrics.downloads.total) * 100)}%` : '—'}</p>
                                 </div>
                             </div>
                         </div>
@@ -407,10 +478,39 @@ const MetricsPage = () => {
                                 <div>
                                     <p className="text-sm text-gray-400">Annulés</p>
                                     <p className="text-2xl font-bold text-white">{metrics.downloads.cancelled}</p>
-                                    <p className="text-xs text-orange-400">{Math.round((metrics.downloads.cancelled / metrics.downloads.total) * 100)}%</p>
+                                    <p className="text-xs text-orange-400">{metrics.downloads.total > 0 ? `${Math.round((metrics.downloads.cancelled / metrics.downloads.total) * 100)}%` : '—'}</p>
                                 </div>
                             </div>
                         </div>
+
+                        {metrics.downloads.last24h != null && (
+                            <div className="card">
+                                <div className="flex items-center space-x-3">
+                                    <div className="p-2 bg-cyan-500/20 rounded-lg">
+                                        <FiClock className="h-5 w-5 text-cyan-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-400">Dernières 24h</p>
+                                        <p className="text-2xl font-bold text-white">{metrics.downloads.last24h}</p>
+                                        <p className="text-xs text-gray-400">téléchargements</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {metrics.downloads.totalVolumeBytes != null && metrics.downloads.totalVolumeBytes > 0 && (
+                            <div className="card">
+                                <div className="flex items-center space-x-3">
+                                    <div className="p-2 bg-violet-500/20 rounded-lg">
+                                        <FiHardDrive className="h-5 w-5 text-violet-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-400">Volume total</p>
+                                        <p className="text-2xl font-bold text-white">{formatBytes(metrics.downloads.totalVolumeBytes)}</p>
+                                        <p className="text-xs text-gray-400">terminés</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
           {/* Graphiques */}
@@ -560,8 +660,8 @@ const MetricsPage = () => {
                                 {metrics.siteStatus.urlHistory && metrics.siteStatus.urlHistory.length > 0 ? (
                                     <div className="space-y-2 max-h-64 overflow-y-auto">
                                         {metrics.siteStatus.urlHistory.map((url, index) => (
-                                            <div key={index} className="flex items-center space-x-3 p-2 bg-dark-700/50 rounded-lg">
-                                                <span className="text-xs text-gray-400 font-mono bg-dark-600 px-2 py-1 rounded">
+                                            <div key={index} className="flex items-center space-x-3 p-2 bg-brand-surface/50 rounded-lg">
+                                                <span className="text-xs text-gray-400 font-mono bg-brand-surface-hover px-2 py-1 rounded">
                                                     #{metrics.siteStatus!.urlHistory.length - index}
                                                 </span>
                                                 <p className="text-sm text-gray-300 truncate flex-1">{url}</p>
@@ -577,6 +677,156 @@ const MetricsPage = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* Tous les téléchargements */}
+                    <div className="card">
+                        <h3 className="text-lg font-semibold text-white mb-4">Tous les téléchargements</h3>
+
+                        <div className="flex flex-wrap items-center gap-3 mb-4">
+                            <input
+                                type="text"
+                                placeholder="Rechercher (titre ou utilisateur)..."
+                                value={downloadsSearchInput}
+                                onChange={(e) => setDownloadsSearchInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && (setDownloadsSearch(downloadsSearchInput), setDownloadsPage(1))}
+                                className="input-field flex-1 min-w-[200px]"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => { setDownloadsSearch(downloadsSearchInput); setDownloadsPage(1) }}
+                                className="btn-primary"
+                            >
+                                Rechercher
+                            </button>
+                            <select
+                                value={downloadsFilterStatus}
+                                onChange={(e) => { setDownloadsFilterStatus(e.target.value); setDownloadsPage(1) }}
+                                className="input-field w-auto"
+                            >
+                                <option value="">Tous les statuts</option>
+                                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                                    <option key={value} value={value}>{label}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={downloadsFilterType}
+                                onChange={(e) => { setDownloadsFilterType(e.target.value); setDownloadsPage(1) }}
+                                className="input-field w-auto"
+                            >
+                                <option value="">Tous les types</option>
+                                {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                                    <option key={value} value={value}>{label}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={`${downloadsSortBy}-${downloadsSortOrder}`}
+                                onChange={(e) => {
+                                    const [sortBy, order] = e.target.value.split('-') as [string, 'asc' | 'desc']
+                                    setDownloadsSortBy(sortBy)
+                                    setDownloadsSortOrder(order)
+                                    setDownloadsPage(1)
+                                }}
+                                className="input-field w-auto"
+                            >
+                                <option value="createdAt-desc">Plus récents</option>
+                                <option value="createdAt-asc">Plus anciens</option>
+                                <option value="startTime-desc">Début (récent)</option>
+                                <option value="status-asc">Statut A-Z</option>
+                                <option value="type-asc">Type A-Z</option>
+                            </select>
+                            <span className="text-sm text-gray-400">
+                                {downloadsTotal} résultat{downloadsTotal !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            {downloadsLoading ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <FiActivity className="h-6 w-6 animate-spin text-brand-primary mr-2" />
+                                    <span className="text-gray-400">Chargement...</span>
+                                </div>
+                            ) : downloadsList.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">Aucun téléchargement</div>
+                            ) : (
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-gray-600 text-left text-gray-400">
+                                            <th className="pb-2 pr-4">Date</th>
+                                            <th className="pb-2 pr-4">Utilisateur</th>
+                                            <th className="pb-2 pr-4">Titre</th>
+                                            <th className="pb-2 pr-4">Type</th>
+                                            <th className="pb-2 pr-4">Statut</th>
+                                            <th className="pb-2 pr-4">Langue</th>
+                                            <th className="pb-2 pr-4">Qualité</th>
+                                            <th className="pb-2 pr-4">Taille</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {downloadsList.map((row) => (
+                                            <tr key={row._id} className="border-b border-gray-700/50 hover:bg-brand-surface/30">
+                                                <td className="py-3 pr-4 text-gray-300 whitespace-nowrap">{formatDate(row.createdAt)}</td>
+                                                <td className="py-3 pr-4 text-white font-medium">{row.username}</td>
+                                                <td className="py-3 pr-4 text-gray-300 max-w-[200px] truncate" title={row.title}>{row.title}</td>
+                                                <td className="py-3 pr-4">{TYPE_LABELS[row.type] ?? row.type}</td>
+                                                <td className="py-3 pr-4">
+                                                    <span className={`px-2 py-0.5 rounded text-xs ${
+                                                        row.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                                                        row.status === 'error' ? 'bg-red-500/20 text-red-400' :
+                                                        row.status === 'cancelled' ? 'bg-orange-500/20 text-orange-400' :
+                                                        row.status === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                        'bg-blue-500/20 text-blue-400'
+                                                    }`}>
+                                                        {STATUS_LABELS[row.status] ?? row.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 pr-4 text-gray-400">{row.language ?? '—'}</td>
+                                                <td className="py-3 pr-4 text-gray-400">{row.quality ?? '—'}</td>
+                                                <td className="py-3 pr-4 text-gray-400">{row.fileSize != null ? formatBytes(row.fileSize) : '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+
+                        {downloadsTotalPages > 1 && (
+                            <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-700">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-gray-400">Lignes par page</span>
+                                    <select
+                                        value={downloadsLimit}
+                                        onChange={(e) => { setDownloadsLimit(Number(e.target.value)); setDownloadsPage(1) }}
+                                        className="input-field w-20"
+                                    >
+                                        {[10, 20, 30, 50].map((n) => (
+                                            <option key={n} value={n}>{n}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadsPage((p) => Math.max(1, p - 1))}
+                                        disabled={downloadsPage <= 1}
+                                        className="btn-secondary disabled:opacity-50"
+                                    >
+                                        Précédent
+                                    </button>
+                                    <span className="text-sm text-gray-400">
+                                        Page {downloadsPage} / {downloadsTotalPages}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDownloadsPage((p) => Math.min(downloadsTotalPages, p + 1))}
+                                        disabled={downloadsPage >= downloadsTotalPages}
+                                        className="btn-secondary disabled:opacity-50"
+                                    >
+                                        Suivant
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             ) : (
                 <div className="text-center py-12">

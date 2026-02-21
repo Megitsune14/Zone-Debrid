@@ -1,86 +1,77 @@
 import { API_CONFIG } from '../config/api'
+import { request } from './httpClient'
 
-/**
- * Get authentication headers for API requests
- * @returns {HeadersInit} Headers object with authorization token if available
- */
-const getAuthHeaders = (): HeadersInit => {
-  const token = localStorage.getItem('token')
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` })
-  }
-}
-
-/**
- * Set master password for Megitsune user
- * @param {string} masterPassword - The new master password to set
- * @param {string} currentMasterPassword - The current master password (required if one exists)
- * @returns {Promise<{success: boolean; message: string}>} Set result
- * @throws {Error} When setting master password fails
- */
 const setMasterPassword = async (masterPassword: string, currentMasterPassword?: string): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_CONFIG.API_URL}/metrics/set-master-password`, {
+  return request(`${API_CONFIG.API_URL}/metrics/set-master-password`, {
     method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ masterPassword, currentMasterPassword })
+    body: { masterPassword, currentMasterPassword }
   })
-
-  const result = await response.json()
-
-  if (!response.ok) {
-    throw new Error(result.message || 'Erreur lors de la définition du mot de passe maître')
-  }
-
-  return result
 }
 
-/**
- * Authenticate with master password for metrics access
- * @param {string} masterPassword - The master password to authenticate with
- * @returns {Promise<{success: boolean; message: string}>} Authentication result
- * @throws {Error} When authentication fails
- */
 const authenticateMasterPassword = async (masterPassword: string): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_CONFIG.API_URL}/metrics/authenticate-master`, {
+  return request(`${API_CONFIG.API_URL}/metrics/authenticate-master`, {
     method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ masterPassword })
+    body: { masterPassword }
   })
-
-  const result = await response.json()
-
-  if (!response.ok) {
-    throw new Error(result.message || 'Erreur lors de l\'authentification maître')
-  }
-
-  return result
 }
 
-/**
- * Get application metrics
- * @returns {Promise<any>} Metrics data
- * @throws {Error} When fetching metrics fails
- */
-const getMetrics = async (): Promise<any> => {
-  const response = await fetch(`${API_CONFIG.API_URL}/metrics`, {
-    method: 'GET',
-    headers: getAuthHeaders()
-  })
+const getMetrics = async (): Promise<{ success: boolean; data: any }> => {
+  return request(`${API_CONFIG.API_URL}/metrics`)
+}
 
-  const result = await response.json()
+export interface GetDownloadsListParams {
+  page?: number
+  limit?: number
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  status?: string
+  type?: string
+  search?: string
+}
 
-  if (!response.ok) {
-    throw new Error(result.message || 'Erreur lors de la récupération des métriques')
-  }
+export interface DownloadListItem {
+  _id: string
+  title: string
+  type: string
+  status: string
+  startTime: string
+  endTime?: string
+  fileSize?: number
+  language?: string
+  quality?: string
+  season?: string
+  errorMessage?: string
+  username: string
+  createdAt: string
+}
 
-  return result
+export interface GetDownloadsListResponse {
+  success: boolean
+  data: DownloadListItem[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+const getDownloadsList = async (params: GetDownloadsListParams = {}): Promise<GetDownloadsListResponse> => {
+  const searchParams = new URLSearchParams()
+  if (params.page != null) searchParams.set('page', String(params.page))
+  if (params.limit != null) searchParams.set('limit', String(params.limit))
+  if (params.sortBy) searchParams.set('sortBy', params.sortBy)
+  if (params.sortOrder) searchParams.set('sortOrder', params.sortOrder)
+  if (params.status) searchParams.set('status', params.status)
+  if (params.type) searchParams.set('type', params.type)
+  if (params.search) searchParams.set('search', params.search)
+  const url = `${API_CONFIG.API_URL}/metrics/downloads${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  return request<GetDownloadsListResponse>(url)
 }
 
 const MetricsService = {
   setMasterPassword,
   authenticateMasterPassword,
-  getMetrics
+  getMetrics,
+  getDownloadsList
 }
 
 export default MetricsService

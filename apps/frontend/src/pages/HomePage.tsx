@@ -38,7 +38,7 @@ const HomePage = () => {
       <section className="text-center py-8 sm:py-12 lg:py-16">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex items-center justify-center mb-4 sm:mb-6">
-            <FiDownload className="h-12 w-12 sm:h-16 sm:w-16 text-primary-500" />
+            <FiDownload className="h-12 w-12 sm:h-16 sm:w-16 text-brand-primary" />
           </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 sm:mb-6">
             Zone-Debrid
@@ -89,9 +89,9 @@ const HomePage = () => {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {features.map((feature, index) => (
-              <div key={index} className="card hover:bg-dark-700 transition-colors duration-200">
+              <div key={index} className="card hover:bg-brand-surface-hover transition-colors duration-200">
                 <div className="flex items-center space-x-3 sm:space-x-4 mb-3 sm:mb-4">
-                  <div className="p-2 sm:p-3 bg-primary-500/20 rounded-lg text-primary-400">
+                  <div className="p-2 sm:p-3 bg-brand-primary/20 rounded-lg text-brand-primary">
                     {feature.icon}
                   </div>
                   <h3 className="text-lg sm:text-xl font-semibold text-white">{feature.title}</h3>
@@ -117,7 +117,7 @@ const HomePage = () => {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             <div className="text-center">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-brand rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
                 <span className="text-lg sm:text-2xl font-bold text-white">1</span>
               </div>
               <h3 className="text-lg sm:text-xl font-semibold text-white mb-2 sm:mb-3">
@@ -132,7 +132,7 @@ const HomePage = () => {
             </div>
             
             <div className="text-center">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-brand rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
                 <span className="text-lg sm:text-2xl font-bold text-white">2</span>
               </div>
               <h3 className="text-lg sm:text-xl font-semibold text-white mb-2 sm:mb-3">
@@ -147,7 +147,7 @@ const HomePage = () => {
             </div>
             
             <div className="text-center">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-brand rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
                 <span className="text-lg sm:text-2xl font-bold text-white">3</span>
               </div>
               <h3 className="text-lg sm:text-xl font-semibold text-white mb-2 sm:mb-3">

@@ -64,6 +64,18 @@ interface EpisodeAvailability {
   filesize?: string;
 }
 
+/** Nombre max d'épisodes vérifiés simultanément (évite le rate-limit AllDebrid) */
+const CONCURRENCY_EPISODE_VERIFICATION = 3;
+
+/** Répartition de la progression (0–5 init, 5–15 scrape, 15–20 prépa, 20–95 vérif, 95–100 final) */
+const PROGRESS = {
+  INIT: 5,
+  SCRAPE_END: 15,
+  PREP: 20,
+  VERIFY_START: 20,
+  VERIFY_END: 95,
+  COMPLETE: 100
+} as const;
 
 const activeSessions: Map<string, { cancelled: boolean }> = new Map();
 
@@ -82,6 +94,48 @@ const formatEpisodeName = (episodeKey: string): string => {
   }
   return episodeKey;
 };
+
+/**
+ * Exécute des tâches asynchrones avec un plafond de concurrence.
+ * Les résultats sont retournés dans le même ordre que les éléments.
+ * @param items - Tableau d'éléments à traiter
+ * @param concurrency - Nombre max de tâches en parallèle
+ * @param fn - Fonction async (item, index) => result
+ * @param options - shouldAbort appelé avant chaque nouvelle tâche ; si true, la tâche est annulée avec abortError
+ */
+async function runWithConcurrencyLimit<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+  options?: { shouldAbort?: () => boolean; abortError?: Error }
+): Promise<Array<PromiseSettledResult<R>>> {
+  const results: Array<PromiseSettledResult<R>> = new Array(items.length);
+  let nextIndex = 0;
+  const abortError = options?.abortError ?? new Error('Aborted');
+
+  const runNext = async (): Promise<void> => {
+    const index = nextIndex++;
+    if (index >= items.length) return;
+    if (options?.shouldAbort?.()) {
+      results[index] = { status: 'rejected', reason: abortError };
+      await runNext();
+      return;
+    }
+    const item = items[index];
+    try {
+      const value = await fn(item, index);
+      results[index] = { status: 'fulfilled', value };
+    } catch (reason) {
+      results[index] = { status: 'rejected', reason };
+    }
+    await runNext();
+  };
+
+  const workerCount = Math.min(concurrency, items.length);
+  const workers = Array.from({ length: workerCount }, () => runNext());
+  await Promise.all(workers);
+  return results;
+}
 
 /**
  * Send progress update via WebSocket to client
@@ -114,7 +168,7 @@ const scrapeDownloadLinks = async (downloadLink: string, targetEpisode?: string,
       sendProgressUpdate(sessionId, {
         type: 'status',
         message: 'Scraping des liens de téléchargement...',
-        progress: 10
+        progress: PROGRESS.INIT
       });
     }
 
@@ -198,7 +252,7 @@ const scrapeDownloadLinks = async (downloadLink: string, targetEpisode?: string,
       sendProgressUpdate(sessionId, {
         type: 'status',
         message: `Scraping terminé - ${Object.keys(scrapedHosts).length} hébergeurs trouvés`,
-        progress: 30
+        progress: PROGRESS.SCRAPE_END
       });
     }
 
@@ -358,7 +412,7 @@ const checkAvailability = async (
       sendProgressUpdate(sessionId, {
         type: 'status',
         message: 'Début de la vérification de disponibilité...',
-        progress: 0
+        progress: PROGRESS.INIT
       });
     }
 
@@ -407,22 +461,21 @@ const checkAvailability = async (
       sendProgressUpdate(sessionId, {
         type: 'status',
         message: `Vérification de ${episodesToCheck.length} épisode(s) sur ${Object.keys(scrapedHosts).length} hébergeur(s)...`,
-        progress: 40
+        progress: PROGRESS.PREP
       });
     }
 
-    // PARALLÉLISATION : Vérifier tous les épisodes en même temps
-    Logger.info(`Starting parallel verification of ${episodesToCheck.length} episodes`);
+    // Parallélisation contrôlée : max N épisodes vérifiés simultanément (évite rate-limit AllDebrid)
+    Logger.info(`Starting verification of ${episodesToCheck.length} episodes (concurrency: ${CONCURRENCY_EPISODE_VERIFICATION})`);
     
     if (sessionId) {
       sendProgressUpdate(sessionId, {
         type: 'status',
-        message: `Démarrage de la vérification parallèle de ${episodesToCheck.length} épisode(s)...`,
-        progress: 40
+        message: `Vérification de ${episodesToCheck.length} épisode(s) (max ${CONCURRENCY_EPISODE_VERIFICATION} en parallèle)...`,
+        progress: PROGRESS.VERIFY_START
       });
     }
 
-    // Créer les promesses pour chaque épisode avec suivi de progression
     let completedCount = 0;
     const updateProgress = (episodeKey: string, success: boolean) => {
       completedCount++;
@@ -432,67 +485,60 @@ const checkAvailability = async (
         sendProgressUpdate(sessionId, {
           type: 'status',
           message: `${status} ${formatEpisodeName(episodeKey)} ${message} (${completedCount}/${episodesToCheck.length})`,
-          progress: 40 + (completedCount / episodesToCheck.length) * 50
+          progress: PROGRESS.VERIFY_START + (completedCount / episodesToCheck.length) * (PROGRESS.VERIFY_END - PROGRESS.VERIFY_START)
         });
       }
     };
 
-    const episodePromises = episodesToCheck.map(async (episodeKey) => {
-      // Vérifier si la session a été annulée avant de commencer cette promesse
-      if (sessionId && activeSessions.get(sessionId)?.cancelled) {
-        throw new Error('Vérification annulée par l\'utilisateur');
-      }
+    const cancellationError = new Error('Vérification annulée par l\'utilisateur');
 
-      Logger.info(`Starting verification of ${episodeKey}...`);
-      
-      try {
-        const result = await checkEpisodeAvailability(
-          episodeKey, 
-          scrapedHosts, 
-          allDebridApiKey, 
-          type, 
-          sessionId
-        );
-        
-        // Vérifier à nouveau si la session a été annulée après la vérification
+    const episodeResults = await runWithConcurrencyLimit(
+      episodesToCheck,
+      CONCURRENCY_EPISODE_VERIFICATION,
+      async (episodeKey) => {
         if (sessionId && activeSessions.get(sessionId)?.cancelled) {
-          throw new Error('Vérification annulée par l\'utilisateur');
+          throw cancellationError;
         }
+
+        Logger.info(`Starting verification of ${episodeKey}...`);
         
-        // Mettre à jour la progression dès qu'un épisode est terminé
-        updateProgress(episodeKey, true);
-        
-        return { episodeKey, result, success: true };
-      } catch (error) {
-        // Si c'est une annulation, la propager
-        if (error instanceof Error && error.message === 'Vérification annulée par l\'utilisateur') {
-          throw error;
+        try {
+          const result = await checkEpisodeAvailability(
+            episodeKey,
+            scrapedHosts,
+            allDebridApiKey,
+            type,
+            sessionId
+          );
+          
+          if (sessionId && activeSessions.get(sessionId)?.cancelled) {
+            throw cancellationError;
+          }
+          
+          updateProgress(episodeKey, true);
+          return { episodeKey, result, success: true };
+        } catch (error) {
+          if (error === cancellationError || (error instanceof Error && error.message === cancellationError.message)) {
+            throw error;
+          }
+          Logger.error(`Error verifying ${episodeKey}: ${error}`);
+          updateProgress(episodeKey, false);
+          return {
+            episodeKey,
+            result: {
+              host: null,
+              available: false,
+              error: `Erreur lors de la vérification: ${error}`
+            },
+            success: false
+          };
         }
-        
-        Logger.error(`Error verifying ${episodeKey}: ${error}`);
-        
-        // Mettre à jour la progression même en cas d'erreur
-        updateProgress(episodeKey, false);
-        
-        return { 
-          episodeKey, 
-          result: {
-            host: null,
-            available: false,
-            error: `Erreur lors de la vérification: ${error}`
-          }, 
-          success: false 
-        };
+      },
+      {
+        shouldAbort: () => (sessionId ? activeSessions.get(sessionId)?.cancelled ?? false : false),
+        abortError: cancellationError
       }
-    });
-
-    // Vérifier si la session a été annulée
-    if (sessionId && activeSessions.get(sessionId)?.cancelled) {
-      throw new Error('Vérification annulée par l\'utilisateur');
-    }
-
-    // Attendre que tous les épisodes soient vérifiés
-    const episodeResults = await Promise.allSettled(episodePromises);
+    );
     
     // Vérifier si la session a été annulée après Promise.allSettled
     if (sessionId && activeSessions.get(sessionId)?.cancelled) {
@@ -531,7 +577,7 @@ const checkAvailability = async (
       sendProgressUpdate(sessionId, {
         type: 'complete',
         message: 'Vérification terminée !',
-        progress: 100,
+        progress: PROGRESS.COMPLETE,
         data: availability
       });
       

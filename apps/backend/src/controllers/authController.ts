@@ -1,8 +1,10 @@
-import { Request, Response } from 'express'
+import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import User from '@/models/User'
 import Logger from '@/base/Logger'
 import allDebridService from '@/services/allDebridService'
+import { AppError } from '@/middleware/errorHandler'
+import { sendServiceDownAlert } from '@/services/discordWebhookService'
 
 /**
  * Generate a JWT token for user authentication
@@ -23,7 +25,7 @@ const generateToken = (userId: string): string => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with success status and user data or error message
  */
-export const register = async (req: Request, res: Response) => {
+export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { username, password, allDebridApiKey } = req.body
 
@@ -44,13 +46,34 @@ export const register = async (req: Request, res: Response) => {
       })
     }
 
+    // Vérifier la disponibilité d'AllDebrid avant de valider la clé (éviter de rejeter une clé valide si service down)
+    const allDebridAvailable = await allDebridService.isAvailable()
+    if (!allDebridAvailable) {
+      sendServiceDownAlert('AllDebrid').catch(() => {})
+      return res.status(503).json({
+        success: false,
+        message: 'Le service AllDebrid est temporairement indisponible. Veuillez réessayer dans quelques minutes.',
+        code: 'ALLDEBRID_UNAVAILABLE'
+      })
+    }
+
     // Valider la clé API AllDebrid
     Logger.info(`Validation de la clé API AllDebrid pour l'utilisateur: ${username}`)
-    const isApiKeyValid = await allDebridService.validateApiKey(allDebridApiKey)
-    if (!isApiKeyValid) {
-      return res.status(400).json({
+    try {
+      const isApiKeyValid = await allDebridService.validateApiKey(allDebridApiKey)
+      if (!isApiKeyValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'La clé API AllDebrid fournie n\'est pas valide. Vérifiez-la sur alldebrid.com',
+          code: 'INVALID_API_KEY'
+        })
+      }
+    } catch (err) {
+      Logger.error(`Erreur réseau lors de la validation AllDebrid: ${err instanceof Error ? err.message : err}`)
+      return res.status(502).json({
         success: false,
-        message: 'La clé API AllDebrid fournie n\'est pas valide. Veuillez vérifier votre clé sur alldebrid.com'
+        message: 'Erreur de connexion temporaire. Veuillez réessayer.',
+        code: 'NETWORK_ERROR'
       })
     }
     Logger.success(`Clé API AllDebrid validée pour l'utilisateur: ${username}`)
@@ -83,22 +106,18 @@ export const register = async (req: Request, res: Response) => {
       }
     })
 
-  } catch (error: any) {
-    Logger.error(`Erreur lors de l'inscription: ${error.message}`)
-    
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map((err: any) => err.message)
+  } catch (error: unknown) {
+    const err = error as { name?: string; errors?: Record<string, { message: string }>; message?: string }
+    Logger.error(`Erreur lors de l'inscription: ${err.message ?? error}`)
+    if (err.name === 'ValidationError' && err.errors) {
+      const errors = Object.values(err.errors).map((e) => e.message)
       return res.status(400).json({
         success: false,
         message: 'Erreur de validation',
         errors
       })
     }
-
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de l\'inscription'
-    })
+    next(error instanceof Error ? error : new AppError('Erreur lors de l\'inscription', 500))
   }
 }
 
@@ -108,7 +127,7 @@ export const register = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with success status and user data with token or error message
  */
-export const login = async (req: Request, res: Response) => {
+export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { username, password } = req.body
 
@@ -157,13 +176,9 @@ export const login = async (req: Request, res: Response) => {
       }
     })
 
-  } catch (error: any) {
-    Logger.error(`Erreur lors de la connexion: ${error.message}`)
-    
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la connexion'
-    })
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de la connexion: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la connexion', 500))
   }
 }
 
@@ -173,7 +188,7 @@ export const login = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with user profile data or error message
  */
-export const getProfile = async (req: Request, res: Response) => {
+export const getProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = req.user
 
@@ -190,13 +205,9 @@ export const getProfile = async (req: Request, res: Response) => {
       }
     })
 
-  } catch (error: any) {
-    Logger.error(`Erreur lors de la récupération du profil: ${error.message}`)
-    
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la récupération du profil'
-    })
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de la récupération du profil: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la récupération du profil', 500))
   }
 }
 
@@ -206,7 +217,7 @@ export const getProfile = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with success status and updated user data or error message
  */
-export const updateProfile = async (req: Request, res: Response) => {
+export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { allDebridApiKey } = req.body
     const user = req.user
@@ -249,23 +260,17 @@ export const updateProfile = async (req: Request, res: Response) => {
       }
     })
 
-  } catch (error: any) {
-    Logger.error(`Erreur lors de la mise à jour du profil: ${error.message}`)
-    
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la mise à jour du profil'
-    })
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de la mise à jour du profil: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la mise à jour du profil', 500))
   }
 }
 
 /**
- * Validate an AllDebrid API key without authentication
- * @param {Request} req - Express request object containing allDebridApiKey
- * @param {Response} res - Express response object
- * @returns {Promise<void>} JSON response with validation result or error message
+ * Validate an AllDebrid API key without authentication.
+ * Vérifie d'abord la disponibilité d'AllDebrid pour distinguer clé invalide / service down / réseau.
  */
-export const validateApiKey = async (req: Request, res: Response) => {
+export const validateApiKey = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { allDebridApiKey } = req.body
 
@@ -276,13 +281,31 @@ export const validateApiKey = async (req: Request, res: Response) => {
       })
     }
 
-    // Valider la clé API AllDebrid
-    const isApiKeyValid = await allDebridService.validateApiKey(allDebridApiKey)
-    
-    if (!isApiKeyValid) {
-      return res.status(400).json({
+    const allDebridAvailable = await allDebridService.isAvailable()
+    if (!allDebridAvailable) {
+      sendServiceDownAlert('AllDebrid').catch(() => {})
+      return res.status(503).json({
         success: false,
-        message: 'La clé API AllDebrid fournie n\'est pas valide. Veuillez vérifier votre clé sur alldebrid.com'
+        message: 'Le service AllDebrid est temporairement indisponible. Réessayez dans quelques minutes.',
+        code: 'ALLDEBRID_UNAVAILABLE'
+      })
+    }
+
+    try {
+      const isApiKeyValid = await allDebridService.validateApiKey(allDebridApiKey)
+      if (!isApiKeyValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Clé API invalide. Vérifiez-la sur alldebrid.com',
+          code: 'INVALID_API_KEY'
+        })
+      }
+    } catch (err) {
+      Logger.error(`Erreur réseau validation clé API: ${err instanceof Error ? err.message : err}`)
+      return res.status(502).json({
+        success: false,
+        message: 'Erreur de connexion temporaire. Réessayez.',
+        code: 'NETWORK_ERROR'
       })
     }
 
@@ -290,14 +313,9 @@ export const validateApiKey = async (req: Request, res: Response) => {
       success: true,
       message: 'Clé API AllDebrid valide'
     })
-
-  } catch (error: any) {
-    Logger.error(`Erreur lors de la validation de la clé API: ${error.message}`)
-    
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la validation de la clé API'
-    })
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de la validation de la clé API: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la validation de la clé API', 500))
   }
 }
 
@@ -307,7 +325,7 @@ export const validateApiKey = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with success status or error message
  */
-export const updatePassword = async (req: Request, res: Response) => {
+export const updatePassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { currentPassword, newPassword } = req.body
     const user = req.user
@@ -348,13 +366,9 @@ export const updatePassword = async (req: Request, res: Response) => {
       message: 'Mot de passe modifié avec succès'
     })
 
-  } catch (error: any) {
-    Logger.error(`Erreur lors de la modification du mot de passe: ${error.message}`)
-    
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la modification du mot de passe'
-    })
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de la modification du mot de passe: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la modification du mot de passe', 500))
   }
 }
 
@@ -364,7 +378,7 @@ export const updatePassword = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with success status or error message
  */
-export const deleteAccount = async (req: Request, res: Response) => {
+export const deleteAccount = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { password } = req.body
     const currentUser = req.user
@@ -406,12 +420,8 @@ export const deleteAccount = async (req: Request, res: Response) => {
       message: 'Votre compte a été supprimé avec succès'
     })
 
-  } catch (error: any) {
-    Logger.error(`Erreur lors de la suppression du compte: ${error.message}`)
-    
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la suppression du compte'
-    })
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de la suppression du compte: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la suppression du compte', 500))
   }
 }

@@ -3,8 +3,9 @@ import { FiFilm, FiTv, FiPlay, FiGlobe, FiStar, FiDownload, FiX, FiCalendar, FiL
 import type { SearchResult, SearchItem } from '../types'
 import apiService from '../services/api'
 import clientDownloadService from '../services/clientDownloadService'
-import { useDownloadContext } from '../contexts/DownloadContext'
-import { API_CONFIG } from '../config/api'
+import downloadHistoryService from '../services/downloadHistoryService'
+import { useActiveDownloads } from '../contexts/ActiveDownloadContext'
+import { API_CONFIG, log } from '../config/api'
 
 interface DownloadModalProps {
   result: SearchResult
@@ -22,10 +23,10 @@ interface ProgressUpdate {
 
 /**
  * Modal pour configurer et lancer un téléchargement
- * Gère la vérification de disponibilité et crée le téléchargement dans le DownloadPanel
+ * Gère la vérification de disponibilité et enregistre les fichiers dans la page Téléchargements
  */
 const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) => {
-  const { addDownload } = useDownloadContext()
+  const { startDownload, startZipDownload } = useActiveDownloads()
   const [selectedLanguage, setSelectedLanguage] = useState<string>('')
   const [selectedQuality, setSelectedQuality] = useState<string>('')
   const [selectedSeason, setSelectedSeason] = useState<string>('')
@@ -88,6 +89,27 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
     
     const details = item.details as { [season: string]: { episodes?: number } }
     return details[season]?.episodes
+  }
+
+  /** Liste unifiée des éléments vérifiés (film ou épisodes) pour affichage et bouton */
+  const getVerifiedItemsList = (): Array<{ key: string; label: string; available: boolean; host?: string | null; error?: string }> => {
+    if (!verificationResults?.availability) return []
+    const entries = Object.entries(verificationResults.availability) as [string, { available: boolean; host?: string | null; error?: string }][]
+    return entries
+      .map(([key, data]) => ({
+        key,
+        label: key === 'film' ? 'Film' : `Épisode ${key.replace('episode_', '')}`,
+        available: data.available,
+        host: data.host,
+        error: data.error
+      }))
+      .sort((a, b) => {
+        if (a.key === 'film') return -1
+        if (b.key === 'film') return 1
+        const numA = parseInt(a.key.replace('episode_', ''), 10)
+        const numB = parseInt(b.key.replace('episode_', ''), 10)
+        return numA - numB
+      })
   }
 
   // Reset state when modal opens
@@ -243,49 +265,57 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
   }
 
   /**
-   * Créer le téléchargement dans le DownloadPanel
+   * Lancer immédiatement le téléchargement (1 fichier ou ZIP) et créer l'entrée d'historique.
+   * Le téléchargement actif s'affiche dans le panel uniquement ; pas de redirection.
    */
   const startClientDownload = async () => {
     try {
-      // Préparer les éléments à télécharger
-      const downloadItems: any[] = []
-      
+      const downloadItems: { url: string; filename: string; fileSize?: number }[] = []
+
       if (result.type === 'films') {
-        // Film unique
         const filmResult = verificationResults?.availability?.film
         if (filmResult?.available && filmResult.link) {
           downloadItems.push({
             url: filmResult.link,
             filename: clientDownloadService.formatFilmFilename(item.title, selectedLanguage, selectedQuality),
-            filesize: filmResult.filesize ? parseInt(filmResult.filesize) : undefined
+            fileSize: filmResult.filesize ? parseInt(filmResult.filesize) : undefined
           })
         }
       } else {
-        // Séries/Animes
         if (selectedEpisodes.length > 0) {
-          // Épisodes spécifiques
           for (const episode of selectedEpisodes) {
             const episodeKey = `episode_${episode}`
             const episodeResult = verificationResults?.availability?.[episodeKey]
             if (episodeResult?.available && episodeResult.link) {
+              const filename = clientDownloadService.formatSingleEpisodeFilename(
+                item.title,
+                selectedSeason.replace('SAISON_', ''),
+                episode.toString(),
+                selectedLanguage,
+                selectedQuality
+              )
               downloadItems.push({
                 url: episodeResult.link,
-                filename: '',
-                episodeNumber: episode.toString(),
-                filesize: episodeResult.filesize ? parseInt(episodeResult.filesize) : undefined
+                filename,
+                fileSize: episodeResult.filesize ? parseInt(episodeResult.filesize) : undefined
               })
             }
           }
         } else {
-          // Tous les épisodes disponibles
           Object.entries(verificationResults?.availability || {}).forEach(([key, episode]: [string, any]) => {
             if (key.startsWith('episode_') && episode.available && episode.link) {
               const episodeNumber = key.replace('episode_', '')
+              const filename = clientDownloadService.formatSingleEpisodeFilename(
+                item.title,
+                selectedSeason.replace('SAISON_', ''),
+                episodeNumber,
+                selectedLanguage,
+                selectedQuality
+              )
               downloadItems.push({
                 url: episode.link,
-                filename: '',
-                episodeNumber,
-                filesize: episode.filesize ? parseInt(episode.filesize) : undefined
+                filename,
+                fileSize: episode.filesize ? parseInt(episode.filesize) : undefined
               })
             }
           })
@@ -296,37 +326,38 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
         throw new Error('Aucun élément disponible pour le téléchargement')
       }
 
-      // Préparer les options de téléchargement
-      const downloadOptions = {
-        type: result.type,
+      const totalFileSize = downloadItems.reduce((t, i) => t + (i.fileSize || 0), 0)
+      const created = await downloadHistoryService.createDownloadHistory({
         title: item.title,
-        season: selectedSeason.replace('SAISON_', ''),
+        type: result.type,
         language: selectedLanguage,
         quality: selectedQuality,
+        season: selectedSeason.replace('SAISON_', ''),
         episodes: selectedEpisodes.map(ep => ep.toString()),
-        items: downloadItems
+        files: downloadItems
+      })
+
+      if (downloadItems.length === 1) {
+        startDownload(downloadItems[0].url, downloadItems[0].filename, {
+          historyId: created._id,
+          fileSize: totalFileSize || undefined
+        })
+      } else {
+        const zipFilename = clientDownloadService.buildZipFilename(
+          item.title,
+          result.type,
+          result.type === 'films' ? undefined : selectedSeason.replace('SAISON_', '')
+        )
+        startZipDownload(
+          downloadItems.map(f => ({ url: f.url, filename: f.filename, fileSize: f.fileSize })),
+          zipFilename,
+          { historyId: created._id, fileSize: totalFileSize || undefined }
+        )
       }
 
-      // Créer le téléchargement dans le panel et lancer le téléchargement
-      await addDownload({
-        title: item.title,
-        type: result.type,
-        progress: null,
-        cleared: false,
-        zipFilename: undefined, // Plus de ZIP, téléchargement individuel uniquement
-        language: selectedLanguage,
-        quality: selectedQuality,
-        season: selectedSeason.replace('SAISON_', ''),
-        episodes: selectedEpisodes.map(ep => ep.toString()),
-        fileSize: downloadItems.reduce((total, item) => total + (item.filesize || 0), 0)
-      }, downloadOptions)
-
-      // Fermer le modal immédiatement après avoir lancé le téléchargement
       onClose()
-      
     } catch (error) {
-      console.error('Error during client download:', error)
-      // L'erreur sera gérée par le DownloadPanel
+      log.error('Error starting download:', error)
     }
   }
 
@@ -336,7 +367,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
       try {
         await apiService.cancelDownloadCheck(sessionId)
       } catch (error) {
-        console.error('Error cancelling download check:', error)
+        log.error('Error cancelling download check:', error)
       }
     }
     onClose()
@@ -423,9 +454,9 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
             <span>Progression</span>
             <span>{Math.round(currentProgress)}%</span>
           </div>
-          <div className="w-full bg-gray-700 rounded-full h-3">
+          <div className="w-full h-3 progress-track">
             <div
-              className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-300"
+              className="progress-fill h-full"
               style={{ width: `${currentProgress}%` }}
             />
           </div>
@@ -457,90 +488,33 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
         </div>
       )}
 
-      {/* Résumé des résultats */}
-      {verificationResults && (
-        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
-          
-          {result.type === 'films' ? (
-            <div className="space-y-2">
-              {verificationResults.availability.film?.available ? (
-                <div className="text-green-400">
-                  <p>✅ Disponible sur <span className="font-medium">{verificationResults.availability.film.host}</span></p>
-                  <p className="text-sm text-gray-400">Lien débridé prêt pour le téléchargement</p>
+      {/* Résumé des résultats : liste unifiée (film, 1 épisode, N épisodes ou saison) */}
+      {verificationResults && (() => {
+        const items = getVerifiedItemsList()
+        const availableCount = items.filter(i => i.available).length
+        return (
+          <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+            <div className={`space-y-2 ${items.length > 5 ? 'max-h-64 overflow-y-auto pr-2' : ''}`}>
+              {items.map(({ key, label, available, host, error }) => (
+                <div key={key} className="flex items-center justify-between gap-3 py-1.5">
+                  <span className="text-gray-300 font-medium">{label}</span>
+                  {available ? (
+                    <span className="text-green-400 text-sm">✅ {host}</span>
+                  ) : (
+                    <span className="text-red-400 text-sm" title={error}>❌ Non disponible</span>
+                  )}
                 </div>
-              ) : (
-                <div className="text-red-400">
-                  <p>❌ Aucun hébergeur disponible</p>
-                  <p className="text-sm text-gray-400">{verificationResults.availability.film?.error}</p>
-                </div>
-              )}
+              ))}
             </div>
-          ) : (
-            <div className="space-y-3">
-              
-              {selectedEpisodes.length > 0 ? (
-                // Épisodes sélectionnés
-                <div className="space-y-3">
-                  {selectedEpisodes.map(episode => (
-                    <div key={episode}>
-                      <p className="text-gray-300 mb-2">
-                        <span className="font-medium">Épisode {episode} :</span>
-                      </p>
-                      {verificationResults.availability[`episode_${episode}`]?.available ? (
-                        <div className="text-green-400">
-                          <p>✅ Disponible sur <span className="font-medium">{verificationResults.availability[`episode_${episode}`].host}</span></p>
-                          <p className="text-sm text-gray-400">Lien débridé prêt pour le téléchargement</p>
-                        </div>
-                      ) : (
-                        <div className="text-red-400">
-                          <p>❌ Aucun hébergeur disponible</p>
-                          <p className="text-sm text-gray-400">{verificationResults.availability[`episode_${episode}`]?.error}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                // Saison complète
-                <div>
-                  <p className="text-gray-300 mb-2">
-                    <span className="font-medium">Saison complète :</span>
-                  </p>
-                  <div className="max-h-64 overflow-y-auto space-y-1 pr-2">
-                    {Object.entries(verificationResults.availability).map(([episodeKey, episodeData]: [string, any]) => {
-                      const episodeNum = episodeKey.replace('episode_', '')
-                      return (
-                        <div key={episodeKey} className="flex items-center justify-between py-1">
-                          <span className="text-gray-300">Épisode {episodeNum} :</span>
-                          {episodeData.available ? (
-                            <span className="text-green-400 text-sm">
-                              ✅ {episodeData.host}
-                            </span>
-                          ) : (
-                            <span className="text-red-400 text-sm">
-                              ❌ Non disponible
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                  
-                  {/* Statistiques */}
-                  <div className="mt-3 pt-3 border-t border-gray-600">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Épisodes disponibles :</span>
-                      <span className="text-green-400 font-medium">
-                        {Object.values(verificationResults.availability).filter((ep: any) => ep.available).length} / {Object.keys(verificationResults.availability).length}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+            {items.length > 1 && (
+              <div className="mt-3 pt-3 border-t border-brand-border flex justify-between text-sm">
+                <span className="text-gray-400">Disponibles :</span>
+                <span className="text-green-400 font-medium">{availableCount} / {items.length}</span>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Action buttons */}
       {currentProgress === 100 ? (
@@ -551,24 +525,25 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
           >
             Fermer
           </button>
-          <button
-            onClick={async () => {
-              try {
-                // Lancer le téléchargement côté client
-                await startClientDownload()
-              } catch (error) {
-                console.error('Error starting download:', error)
-                // Ici vous pourriez afficher une notification d'erreur
-              }
-            }}
-            className="btn-primary flex-1"
-            disabled={!verificationResults}
-          >
-            {result.type !== 'films' && selectedEpisodes.length === 0 ? 
-              `Télécharger ${Object.values(verificationResults?.availability || {}).filter((ep: any) => ep.available).length} épisodes` : 
-              'Lancer le téléchargement'
-            }
-          </button>
+          {(() => {
+            const list = getVerifiedItemsList()
+            const availableCount = list.filter(i => i.available).length
+            if (availableCount === 0) return null
+            return (
+              <button
+                onClick={async () => {
+                  try {
+                    await startClientDownload()
+                  } catch (error) {
+                    log.error('Error starting download:', error)
+                  }
+                }}
+                className="btn-primary flex-1"
+              >
+                {availableCount === 1 ? 'Lancer le téléchargement' : 'Lancer le téléchargement (ZIP)'}
+              </button>
+            )
+          })()}
         </div>
       ) : currentProgress > 0 && currentProgress < 100 ? (
         <div className="flex space-x-3">
@@ -584,7 +559,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
                 setProgressUpdates([])
                 onClose()
               } catch (error) {
-                console.error('Error cancelling download check:', error)
+                log.error('Error cancelling download check:', error)
                 // Fermer quand même le modal
                 onClose()
               }
@@ -613,7 +588,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
             className={`p-3 rounded-lg border-2 transition-colors ${
               selectedSeason === season
                 ? 'border-green-500 bg-green-500/20 text-green-400'
-                : 'border-gray-600 bg-dark-700 text-gray-300 hover:border-gray-500'
+                : 'border-brand-border bg-brand-surface text-gray-300 hover:border-brand-primary'
             }`}
           >
             <div className="text-center">
@@ -647,7 +622,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
               className={`p-3 rounded-lg border-2 transition-colors ${
                 selectedLanguage === lang
                   ? 'border-blue-500 bg-blue-500/20 text-blue-400'
-                  : 'border-gray-600 bg-dark-700 text-gray-300 hover:border-gray-500'
+                  : 'border-brand-border bg-brand-surface text-gray-300 hover:border-brand-primary'
               }`}
             >
               {lang}
@@ -685,7 +660,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
                   className={`p-3 rounded-lg border-2 transition-colors ${
                     selectedQuality === quality
                       ? 'border-yellow-500 bg-yellow-500/20 text-yellow-400'
-                      : 'border-gray-600 bg-dark-700 text-gray-300 hover:border-gray-500'
+                      : 'border-brand-border bg-brand-surface text-gray-300 hover:border-brand-primary'
                   }`}
                 >
                   <div className="text-center">
@@ -716,7 +691,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
           className={`w-full p-4 rounded-lg border-2 transition-colors ${
             downloadType === 'full_season'
               ? 'border-purple-500 bg-purple-500/20 text-purple-400'
-              : 'border-gray-600 bg-dark-700 text-gray-300 hover:border-gray-500'
+              : 'border-brand-border bg-brand-surface text-gray-300 hover:border-brand-primary'
           }`}
         >
           <div className="text-center">
@@ -730,7 +705,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
           className={`w-full p-4 rounded-lg border-2 transition-colors ${
             downloadType === 'episode'
               ? 'border-purple-500 bg-purple-500/20 text-purple-400'
-              : 'border-gray-600 bg-dark-700 text-gray-300 hover:border-gray-500'
+              : 'border-brand-border bg-brand-surface text-gray-300 hover:border-brand-primary'
           }`}
         >
           <div className="text-center">
@@ -779,19 +754,13 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
             </button>
             <button
               onClick={clearSelection}
-              className="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors"
+              className="px-3 py-1 text-xs bg-brand-surface hover:bg-brand-surface-hover text-white rounded transition-colors border border-brand-border"
             >
               Effacer
             </button>
           </div>
         </div>
-        
-        {selectedEpisodes.length > 0 && (
-          <div className="text-sm text-gray-300">
-            {selectedEpisodes.length} épisode{selectedEpisodes.length > 1 ? 's' : ''} sélectionné{selectedEpisodes.length > 1 ? 's' : ''} : {selectedEpisodes.join(', ')}
-          </div>
-        )}
-        
+
         <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
           {Array.from({ length: episodeCount }, (_, i) => i + 1).map((episode) => (
             <button
@@ -800,7 +769,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
               className={`p-3 rounded-lg border-2 transition-colors ${
                 selectedEpisodes.includes(episode)
                   ? 'border-orange-500 bg-orange-500/20 text-orange-400'
-                  : 'border-gray-600 bg-dark-700 text-gray-300 hover:border-gray-500'
+                  : 'border-brand-border bg-brand-surface text-gray-300 hover:border-brand-primary'
               }`}
             >
               Épisode {episode.toString().padStart(2, '0')}
@@ -864,7 +833,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-dark-800 rounded-lg p-3 sm:p-4 md:p-6 w-full max-w-xs sm:max-w-lg md:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+      <div className="panel-glass p-3 sm:p-4 md:p-6 w-full max-w-xs sm:max-w-lg md:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-3 sm:mb-4 md:mb-6">
           <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
@@ -886,9 +855,9 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
               <span>Étape {currentStep} sur {getMaxSteps()}</span>
               <span>{Math.round((currentStep / getMaxSteps()) * 100)}%</span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-1.5 sm:h-2">
+            <div className="w-full h-1.5 sm:h-2 progress-track">
               <div
-                className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 sm:h-2 rounded-full transition-all duration-300"
+                className="progress-fill h-full"
                 style={{ width: `${(currentStep / getMaxSteps()) * 100}%` }}
               />
             </div>

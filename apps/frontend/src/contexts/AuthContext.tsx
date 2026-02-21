@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { User, AuthState, RegisterRequest, LoginRequest, UpdateProfileRequest } from '../types/auth'
 import authService from '../services/authService'
+import { log } from '../config/api'
 
 // Types pour le contexte
 interface AuthContextType extends AuthState {
@@ -100,7 +101,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         payload: { user: response.data.user, token }
       })
     } catch (error) {
-      console.error('Erreur lors du chargement de l\'utilisateur:', error)
+      log.error('Erreur lors du chargement de l\'utilisateur:', error)
       authService.removeToken()
       dispatch({ type: 'AUTH_FAIL' })
     }

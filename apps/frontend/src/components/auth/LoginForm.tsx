@@ -113,7 +113,7 @@ const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
           Pas encore de compte ?{' '}
           <button
             onClick={onSwitchToRegister}
-            className="text-primary-400 hover:text-primary-300 font-medium"
+            className="text-brand-primary hover:text-brand-variant font-medium"
             disabled={isLoading}
           >
             Créer un compte

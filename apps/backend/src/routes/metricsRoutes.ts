@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { setMasterPassword, authenticateMasterPassword, getMetrics } from '@/controllers/metricsController'
+import { setMasterPassword, authenticateMasterPassword, getMetrics, getDownloadsList } from '@/controllers/metricsController'
 import { auth } from '@/middleware/auth'
 
 const router = Router()
@@ -21,5 +21,10 @@ router.post('/authenticate-master', authenticateMasterPassword)
  * Obtenir les métriques de l'application
  */
 router.get('/', getMetrics)
+
+/**
+ * Liste paginée de tous les téléchargements (tri, filtres, recherche)
+ */
+router.get('/downloads', getDownloadsList)
 
 export default router

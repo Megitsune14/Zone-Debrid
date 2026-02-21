@@ -1,4 +1,4 @@
-import DownloadHistory, { IDownloadHistory, IDownloadHistoryLean } from '@/models/DownloadHistory'
+import DownloadHistory, { IDownloadHistory, IDownloadHistoryLean, IDownloadHistoryFile } from '@/models/DownloadHistory'
 import Logger from '@/base/Logger'
 
 interface CreateDownloadHistoryData {
@@ -10,6 +10,7 @@ interface CreateDownloadHistoryData {
   season?: string
   episodes?: string[]
   downloadUrl?: string
+  files?: IDownloadHistoryFile[]
 }
 
 interface UpdateDownloadHistoryData {
@@ -35,6 +36,7 @@ const createDownloadHistory = async (data: CreateDownloadHistoryData): Promise<I
       season: data.season,
       episodes: data.episodes,
       downloadUrl: data.downloadUrl,
+      files: data.files,
       status: 'downloading',
       startTime: new Date()
     })
@@ -64,7 +66,7 @@ const updateDownloadHistory = async (
         ...data,
         updatedAt: new Date()
       },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     if (downloadHistory) {

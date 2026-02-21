@@ -26,27 +26,9 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
 
     req.user = user
     next()
-  } catch (error: any) {
-    Logger.error(`Erreur d'authentification: ${error.message}`)
-    
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token invalide'
-      })
-    }
-    
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token expiré'
-      })
-    }
-    
-    return res.status(500).json({
-      success: false,
-      message: 'Erreur lors de l\'authentification'
-    })
+  } catch (error: unknown) {
+    Logger.error(`Erreur d'authentification: ${error instanceof Error ? error.message : String(error)}`)
+    next(error)
   }
 }
 
@@ -66,8 +48,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     }
     
     next()
-  } catch (error) {
-    // Pour l'authentification optionnelle, on continue même en cas d'erreur
+  } catch {
     next()
   }
 }

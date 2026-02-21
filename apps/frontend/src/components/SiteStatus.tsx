@@ -82,7 +82,7 @@ const SiteStatus = forwardRef<SiteStatusRef, SiteStatusProps>(({ onSearchTrigger
         return (
         <div className="card mb-4 md:mb-6">
             <div className="flex items-center space-x-2 md:space-x-3">
-                <div className="animate-spin rounded-full h-4 w-4 md:h-5 md:w-5 border-b-2 border-primary-500"></div>
+                <div className="animate-spin rounded-full h-4 w-4 md:h-5 md:w-5 border-b-2 border-brand-primary"></div>
                 <span className="text-sm md:text-base text-gray-300">Chargement du statut...</span>
             </div>
         </div>

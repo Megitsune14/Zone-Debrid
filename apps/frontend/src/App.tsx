@@ -1,17 +1,20 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { DownloadProvider, useDownloadContext } from './contexts/DownloadContext'
 import { NotificationProvider, useNotification } from './contexts/NotificationContext'
+import { ActiveDownloadProvider } from './contexts/ActiveDownloadContext'
+import ErrorBoundary from './components/ErrorBoundary'
 import Header from './components/Header'
 import Footer from './components/Footer'
-import DownloadPanel from './components/DownloadPanel'
+import ActiveDownloadsPanel from './components/ActiveDownloadsPanel'
 import InvalidApiKeyModal from './components/InvalidApiKeyModal'
 import HomePage from './pages/HomePage'
 import SearchPage from './pages/SearchPage'
+import DownloadsPage from './pages/DownloadsPage'
 import SettingsPage from './pages/SettingsPage'
 import MetricsPage from './pages/MetricsPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import TermsOfServicePage from './pages/TermsOfServicePage'
+import FAQPage from './pages/FAQPage'
 import AuthPage from './pages/AuthPage'
 import { FiLoader } from 'react-icons/fi'
 
@@ -26,9 +29,9 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center relative z-10">
         <div className="text-center">
-          <FiLoader className="h-8 w-8 animate-spin text-primary-500 mx-auto mb-4" />
+          <FiLoader className="h-8 w-8 animate-spin text-brand-primary mx-auto mb-4" />
           <p className="text-gray-400">Chargement...</p>
         </div>
       </div>
@@ -48,27 +51,16 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
  */
 const AppContent = () => {
   const { isAuthenticated } = useAuth()
-  const {
-    downloads,
-    isPanelOpen,
-    togglePanel,
-    cancelDownload,
-    pauseDownload,
-    resumeDownload,
-    removeDownload,
-    clearDownloadHistory,
-    deleteDownloadHistory
-  } = useDownloadContext()
   const { state: notificationState, hideInvalidApiKeyModal } = useNotification()
 
   return (
-    <div className="min-h-screen bg-dark-900 text-gray-100 flex flex-col">
+    <div className="min-h-screen bg-brand-bg text-gray-100 flex flex-col relative z-10">
       <Header />
       
       <main className="flex-1">
         <Routes>
           <Route path="/auth" element={
-            isAuthenticated ? <Navigate to="/" replace /> : <AuthPage />
+            <AuthRoute />
           } />
           <Route path="/" element={
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
@@ -79,6 +71,13 @@ const AppContent = () => {
             <ProtectedRoute>
               <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
                 <SearchPage />
+              </div>
+            </ProtectedRoute>
+          } />
+          <Route path="/downloads" element={
+            <ProtectedRoute>
+              <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+                <DownloadsPage />
               </div>
             </ProtectedRoute>
           } />
@@ -106,27 +105,18 @@ const AppContent = () => {
               <TermsOfServicePage />
             </div>
           } />
+          <Route path="/faq" element={
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+              <FAQPage />
+            </div>
+          } />
         </Routes>
       </main>
       
       <Footer />
-      
-      {/* Panel de téléchargements - seulement si l'utilisateur est authentifié */}
-      {isAuthenticated && (
-        <DownloadPanel
-          isOpen={isPanelOpen}
-          onToggle={togglePanel}
-          downloads={downloads}
-          onCancel={cancelDownload}
-          onPause={pauseDownload}
-          onResume={resumeDownload}
-          onRemove={removeDownload}
-          onClearHistory={clearDownloadHistory}
-          onDeleteHistory={deleteDownloadHistory}
-        />
-      )}
 
-      {/* Modal de clé API invalide */}
+      {isAuthenticated && <ActiveDownloadsPanel />}
+
       <InvalidApiKeyModal
         isOpen={notificationState.invalidApiKeyModal.isOpen}
         onClose={hideInvalidApiKeyModal}
@@ -136,17 +126,24 @@ const AppContent = () => {
   )
 }
 
+const AuthRoute = () => {
+  const { isAuthenticated } = useAuth()
+  return isAuthenticated ? <Navigate to="/" replace /> : <AuthPage />
+}
+
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <DownloadProvider>
+    <ErrorBoundary>
+      <Router>
+        <AuthProvider>
           <NotificationProvider>
-            <AppContent />
+            <ActiveDownloadProvider>
+              <AppContent />
+            </ActiveDownloadProvider>
           </NotificationProvider>
-        </DownloadProvider>
-      </AuthProvider>
-    </Router>
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   )
 }
 

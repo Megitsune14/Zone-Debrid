@@ -63,7 +63,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
         <span>{isExpanded ? description : truncatedText}</span>
         <button
           onClick={() => toggleDescription(itemId)}
-          className="ml-2 text-blue-400 hover:text-blue-300 text-sm font-medium"
+          className="ml-2 text-brand-primary hover:text-brand-variant text-sm font-medium"
         >
           {isExpanded ? 'voir moins' : 'voir plus'}
         </button>
@@ -87,13 +87,13 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
             const qualities = Object.keys(details[language])
             return (
               <div key={language} className="flex items-center space-x-2 text-sm">
-                <FiGlobe className="h-4 w-4 text-blue-400" />
+                <FiGlobe className="h-4 w-4 text-brand-primary" />
                 <span className="text-gray-400">{language}:</span>
                 <div className="flex flex-wrap gap-1">
                   {qualities.map((quality) => (
                     <span
                       key={quality}
-                      className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-medium"
+                      className="px-2 py-1 bg-brand-primary/20 text-brand-primary rounded text-xs font-medium"
                     >
                       {quality}
                     </span>
@@ -131,7 +131,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
                   const qualities = Object.keys(seasonData.versions[language])
                   return (
                     <div key={language} className="ml-6 flex items-center space-x-2 text-sm">
-                      <FiGlobe className="h-4 w-4 text-blue-400" />
+                      <FiGlobe className="h-4 w-4 text-brand-primary" />
                       <span className="text-gray-400">{language}:</span>
                       <div className="flex flex-wrap gap-1">
                         {qualities.map((quality) => {
@@ -139,7 +139,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
                           return (
                             <span
                               key={quality}
-                              className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-medium"
+                              className="px-2 py-1 bg-brand-primary/20 text-brand-primary rounded text-xs font-medium"
                               title={fileSize ? `Taille: ${fileSize}` : undefined}
                             >
                               {quality}
@@ -163,7 +163,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
     return (
       <div className="card">
         <div className="flex items-center justify-center py-8 md:py-12">
-          <div className="animate-spin rounded-full h-6 w-6 md:h-8 md:w-8 border-b-2 border-primary-500"></div>
+          <div className="animate-spin rounded-full h-6 w-6 md:h-8 md:w-8 border-b-2 border-brand-primary"></div>
           <span className="ml-2 md:ml-3 text-sm md:text-base text-gray-400">Recherche en cours...</span>
         </div>
       </div>
@@ -212,7 +212,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
                         className="w-full md:w-32 h-48 md:h-48 object-cover rounded-lg"
                       />
                     ) : (
-                      <div className="w-full md:w-20 h-32 md:h-28 bg-dark-700 rounded-lg flex items-center justify-center">
+                      <div className="w-full md:w-20 h-32 md:h-28 bg-brand-surface rounded-lg flex items-center justify-center">
                         {getTypeIcon(result.type)}
                       </div>
                     )}

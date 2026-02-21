@@ -12,6 +12,7 @@
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"outDir": "dist",
+		"types": ["node"],
 		"typeRoots": ["src/types", "node_modules/@types"],
 		"baseUrl": "./src",
 		"paths": {

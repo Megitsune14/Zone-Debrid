@@ -12,6 +12,9 @@ declare global {
 
 			// JWT Secret
 			JWT_SECRET: string;
+
+			// Discord (optionnel) — webhook pour notifications d'erreurs critiques
+			DISCORD_WEBHOOK_URL?: string;
 		}
 	}
 }

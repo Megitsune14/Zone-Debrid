@@ -20,8 +20,7 @@ const generateEnvSchema = async (): Promise<z.ZodObject<any, any>> => {
 	for (const key of envKeys) {
 		if (key === 'NODE_ENV') {
 			schemaShape[key] = z.enum(['development', 'production'] as const, {
-				required_error: "NODE_ENV must be either 'development' or 'production'",
-				invalid_type_error: "NODE_ENV must be either 'development' or 'production'"
+				message: "NODE_ENV must be either 'development' or 'production'"
 			});
 			continue;
 		}
@@ -62,7 +61,7 @@ export const checkConfig = async (): Promise<void> => {
 			throw error;
 		}
 
-		await mongoose.connect(envParse.MONGODB_URL);
+		await mongoose.connect(String(envParse.MONGODB_URL));
 
 		const npmScript = process.env.npm_lifecycle_event;
 		

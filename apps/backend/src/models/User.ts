@@ -43,29 +43,23 @@ const userSchema = new Schema<IUser>({
   timestamps: true
 })
 
-// Middleware pour hasher le mot de passe et chiffrer la clé API avant sauvegarde
-userSchema.pre('save', async function(next) {
-  try {
-    // Hasher le mot de passe si il a été modifié
-    if (this.isModified('password')) {
-      const salt = await bcrypt.genSalt(12)
-      this.password = await bcrypt.hash(this.password, salt)
-    }
-    
-    // Hasher le mot de passe maître si il a été modifié
-    if (this.isModified('masterPassword') && this.masterPassword) {
-      const salt = await bcrypt.genSalt(12)
-      this.masterPassword = await bcrypt.hash(this.masterPassword, salt)
-    }
-    
-    // Chiffrer la clé API AllDebrid si elle a été modifiée et n'est pas déjà chiffrée
-    if (this.isModified('allDebridApiKey') && !isEncrypted(this.allDebridApiKey)) {
-      this.allDebridApiKey = encrypt(this.allDebridApiKey)
-    }
-    
-    next()
-  } catch (error: any) {
-    next(error)
+// Middleware pour hasher le mot de passe et chiffrer la clé API avant sauvegarde (Mongoose 9: pas de next(), async uniquement)
+userSchema.pre('save', async function() {
+  // Hasher le mot de passe si il a été modifié
+  if (this.isModified('password')) {
+    const salt = await bcrypt.genSalt(12)
+    this.password = await bcrypt.hash(this.password, salt)
+  }
+
+  // Hasher le mot de passe maître si il a été modifié
+  if (this.isModified('masterPassword') && this.masterPassword) {
+    const salt = await bcrypt.genSalt(12)
+    this.masterPassword = await bcrypt.hash(this.masterPassword, salt)
+  }
+
+  // Chiffrer la clé API AllDebrid si elle a été modifiée et n'est pas déjà chiffrée
+  if (this.isModified('allDebridApiKey') && !isEncrypted(this.allDebridApiKey)) {
+    this.allDebridApiKey = encrypt(this.allDebridApiKey)
   }
 })
 

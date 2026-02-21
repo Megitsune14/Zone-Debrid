@@ -1,8 +1,9 @@
-import { Request, Response } from 'express'
+import { Request, Response, NextFunction } from 'express'
 import User from '@/models/User'
 import DownloadHistory from '@/models/DownloadHistory'
 import ZTUrl from '@/models/ZTUrl'
 import Logger from '@/base/Logger'
+import { AppError } from '@/middleware/errorHandler'
 
 /**
  * Set master password for Megitsune user
@@ -10,7 +11,7 @@ import Logger from '@/base/Logger'
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with success status or error message
  */
-export const setMasterPassword = async (req: Request, res: Response) => {
+export const setMasterPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { masterPassword, currentMasterPassword } = req.body
     const user = req.user
@@ -78,13 +79,9 @@ export const setMasterPassword = async (req: Request, res: Response) => {
       message: megitsuneUser.masterPassword ? 'Mot de passe maître modifié avec succès' : 'Mot de passe maître défini avec succès'
     })
 
-  } catch (error: any) {
-    Logger.error(`Erreur lors de la définition du mot de passe maître: ${error.message}`)
-    
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la définition du mot de passe maître'
-    })
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de la définition du mot de passe maître: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la définition du mot de passe maître', 500, undefined, 'critical'))
   }
 }
 
@@ -94,7 +91,7 @@ export const setMasterPassword = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with success status or error message
  */
-export const authenticateMasterPassword = async (req: Request, res: Response) => {
+export const authenticateMasterPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { masterPassword } = req.body
     const user = req.user
@@ -148,13 +145,9 @@ export const authenticateMasterPassword = async (req: Request, res: Response) =>
       message: 'Authentification maître réussie'
     })
 
-  } catch (error: any) {
-    Logger.error(`Erreur lors de l'authentification maître: ${error.message}`)
-    
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de l\'authentification maître'
-    })
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de l'authentification maître: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de l\'authentification maître', 500, undefined, 'critical'))
   }
 }
 
@@ -164,7 +157,7 @@ export const authenticateMasterPassword = async (req: Request, res: Response) =>
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with metrics data or error message
  */
-export const getMetrics = async (req: Request, res: Response) => {
+export const getMetrics = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = req.user
 
@@ -188,6 +181,15 @@ export const getMetrics = async (req: Request, res: Response) => {
     const errorDownloads = await DownloadHistory.countDocuments({ status: 'error' })
     const cancelledDownloads = await DownloadHistory.countDocuments({ status: 'cancelled' })
     const clearedDownloads = await DownloadHistory.countDocuments({ cleared: true })
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const downloadsLast24h = await DownloadHistory.countDocuments({ createdAt: { $gte: oneDayAgo } })
+
+    const volumeResult = await DownloadHistory.aggregate([
+      { $match: { status: 'completed', fileSize: { $exists: true, $gt: 0 } } },
+      { $group: { _id: null, totalBytes: { $sum: '$fileSize' } } }
+    ])
+    const totalVolumeBytes = volumeResult[0]?.totalBytes ?? 0
 
     // Récupérer les téléchargements par type
     const downloadsByType = await DownloadHistory.aggregate([
@@ -266,6 +268,8 @@ export const getMetrics = async (req: Request, res: Response) => {
         error: errorDownloads,
         cancelled: cancelledDownloads,
         cleared: clearedDownloads,
+        last24h: downloadsLast24h,
+        totalVolumeBytes,
         byType: downloadsByType,
         byDay: downloadsByDay
       },
@@ -286,18 +290,94 @@ export const getMetrics = async (req: Request, res: Response) => {
       data: metrics
     })
 
-  } catch (error: any) {
-    Logger.error(`Erreur lors de la récupération des métriques: ${error.message}`)
-    
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la récupération des métriques'
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de la récupération des métriques: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la récupération des métriques', 500, undefined, 'critical'))
+  }
+}
+
+/**
+ * GET /api/metrics/downloads — Liste paginée de tous les téléchargements (tous utilisateurs)
+ * Query: page, limit, sortBy, sortOrder, status, type, search
+ * Tri par défaut: createdAt desc (plus récent en premier)
+ */
+export const getDownloadsList = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = req.user
+
+    if (user?.username !== 'megitsune') {
+      return res.status(403).json({
+        success: false,
+        message: 'Accès refusé. Seul l\'utilisateur Megitsune peut accéder aux métriques.'
+      })
+    }
+
+    const page = Math.max(1, parseInt(String(req.query.page), 10) || 1)
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit), 10) || 20))
+    const sortBy = String(req.query.sortBy || 'createdAt')
+    const sortOrder = String(req.query.sortOrder || 'desc').toLowerCase() === 'asc' ? 1 : -1
+    const status = typeof req.query.status === 'string' && req.query.status.trim() ? req.query.status.trim() : undefined
+    const type = typeof req.query.type === 'string' && req.query.type.trim() ? req.query.type.trim() : undefined
+    const search = typeof req.query.search === 'string' && req.query.search.trim() ? req.query.search.trim() : undefined
+
+    const match: Record<string, unknown> = {}
+    if (status) match.status = status
+    if (type) match.type = type
+    if (search) {
+      const usersMatching = await User.find({ username: { $regex: search, $options: 'i' } }).select('_id').lean()
+      const userIds = usersMatching.map((u: { _id: unknown }) => u._id)
+      match.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        ...(userIds.length ? [{ userId: { $in: userIds } }] : [])
+      ]
+    }
+
+    const sortField = ['createdAt', 'startTime', 'endTime', 'status', 'type', 'title'].includes(sortBy) ? sortBy : 'createdAt'
+
+    const [items, total] = await Promise.all([
+      DownloadHistory.find(match)
+        .populate('userId', 'username')
+        .sort({ [sortField]: sortOrder })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean()
+        .exec(),
+      DownloadHistory.countDocuments(match)
+    ])
+
+    const data = items.map((doc: any) => ({
+      _id: doc._id,
+      title: doc.title,
+      type: doc.type,
+      status: doc.status,
+      startTime: doc.startTime,
+      endTime: doc.endTime,
+      fileSize: doc.fileSize,
+      language: doc.language,
+      quality: doc.quality,
+      season: doc.season,
+      errorMessage: doc.errorMessage,
+      username: doc.userId?.username ?? '—',
+      createdAt: doc.createdAt
+    }))
+
+    res.json({
+      success: true,
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
     })
+  } catch (error: unknown) {
+    Logger.error(`Erreur getDownloadsList: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la récupération des téléchargements', 500, undefined, 'critical'))
   }
 }
 
 export default {
   setMasterPassword,
   authenticateMasterPassword,
-  getMetrics
+  getMetrics,
+  getDownloadsList
 }
