@@ -2,7 +2,8 @@ import crypto from 'crypto'
 import DownloadSession, { IDownloadSession, IZipFileEntry } from '@/models/DownloadSession'
 import Logger from '@/base/Logger'
 
-const SIGNATURE_TTL_SEC = 60
+/** Durée de validité des liens signés de téléchargement (2 heures). */
+const SIGNATURE_TTL_SEC = 7200
 const SIGNATURE_ALGO = 'sha256'
 
 function getSignatureSecret(): string {
