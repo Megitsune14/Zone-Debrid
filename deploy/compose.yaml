@@ -21,7 +21,7 @@ services:
       - "traefik.http.routers.zone-debrid-backend.tls=true"
     restart: unless-stopped
     volumes:
-      - ../deploy/.env:/app/.env
+      - ./.env:/app/.env
     networks:
       - web
       - zone-debrid
