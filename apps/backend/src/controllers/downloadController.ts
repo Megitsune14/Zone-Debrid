@@ -13,6 +13,13 @@ import { AppError } from '@/middleware/errorHandler';
 
 const FORWARD_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
 
+/** Protocole effectif pour la génération d’URL (HTTPS derrière reverse proxy). */
+function getEffectiveProtocol(req: Request): string {
+  const forwarded = req.get('x-forwarded-proto');
+  if (forwarded === 'https' || forwarded === 'http') return forwarded;
+  return req.protocol;
+}
+
 /**
  * Check download availability for links using AllDebrid service
  * @param {Request} req - Express request object containing downloadLink, type, episodes, and optional sessionId
@@ -112,7 +119,7 @@ export const getSignedProxy = async (req: Request, res: Response, next: NextFunc
       historyId
     );
 
-    const baseUrl = `${req.protocol}://${req.get('host') || ''}`;
+    const baseUrl = `${getEffectiveProtocol(req)}://${req.get('host') || ''}`;
     const { url: downloadUrl } = downloadSessionService.getSignedDownloadUrl(baseUrl, session._id.toString());
 
     res.json({
@@ -171,7 +178,7 @@ export const getSignedProxyZip = async (req: Request, res: Response, next: NextF
       historyId
     );
 
-    const baseUrl = `${req.protocol}://${req.get('host') || ''}`;
+    const baseUrl = `${getEffectiveProtocol(req)}://${req.get('host') || ''}`;
     const { url: downloadUrl } = downloadSessionService.getSignedZipDownloadUrl(baseUrl, session._id.toString());
 
     res.json({
