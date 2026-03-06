@@ -5,6 +5,7 @@ import apiService from '../services/api'
 import clientDownloadService from '../services/clientDownloadService'
 import downloadHistoryService from '../services/downloadHistoryService'
 import { useActiveDownloads } from '../contexts/ActiveDownloadContext'
+import { useAuth } from '../contexts/AuthContext'
 import { API_CONFIG, log } from '../config/api'
 
 interface DownloadModalProps {
@@ -26,7 +27,8 @@ interface ProgressUpdate {
  * Gère la vérification de disponibilité et enregistre les fichiers dans la page Téléchargements
  */
 const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) => {
-  const { startDownload, startZipDownload } = useActiveDownloads()
+  const { startDownload, startZipDownload, refetchSessions } = useActiveDownloads()
+  const { user } = useAuth()
   const [selectedLanguage, setSelectedLanguage] = useState<string>('')
   const [selectedQuality, setSelectedQuality] = useState<string>('')
   const [selectedSeason, setSelectedSeason] = useState<string>('')
@@ -361,6 +363,99 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
     }
   }
 
+  /**
+   * Envoyer les téléchargements vérifiés vers Aria2 (NAS utilisateur).
+   */
+  const startNasDownload = async () => {
+    try {
+      const downloadItems: { url: string; filename: string; fileSize?: number }[] = []
+
+      if (result.type === 'films') {
+        const filmResult = verificationResults?.availability?.film
+        if (filmResult?.available && filmResult.link) {
+          downloadItems.push({
+            url: filmResult.link,
+            filename: clientDownloadService.formatFilmFilename(item.title, selectedLanguage, selectedQuality),
+            fileSize: filmResult.filesize ? parseInt(filmResult.filesize) : undefined
+          })
+        }
+      } else {
+        if (selectedEpisodes.length > 0) {
+          for (const episode of selectedEpisodes) {
+            const episodeKey = `episode_${episode}`
+            const episodeResult = verificationResults?.availability?.[episodeKey]
+            if (episodeResult?.available && episodeResult.link) {
+              const filename = clientDownloadService.formatSingleEpisodeFilename(
+                item.title,
+                selectedSeason.replace('SAISON_', ''),
+                episode.toString(),
+                selectedLanguage,
+                selectedQuality
+              )
+              downloadItems.push({
+                url: episodeResult.link,
+                filename,
+                fileSize: episodeResult.filesize ? parseInt(episodeResult.filesize) : undefined
+              })
+            }
+          }
+        } else {
+          Object.entries(verificationResults?.availability || {}).forEach(([key, episode]: [string, any]) => {
+            if (key.startsWith('episode_') && episode.available && episode.link) {
+              const episodeNumber = key.replace('episode_', '')
+              const filename = clientDownloadService.formatSingleEpisodeFilename(
+                item.title,
+                selectedSeason.replace('SAISON_', ''),
+                episodeNumber,
+                selectedLanguage,
+                selectedQuality
+              )
+              downloadItems.push({
+                url: episode.link,
+                filename,
+                fileSize: episode.filesize ? parseInt(episode.filesize) : undefined
+              })
+            }
+          })
+        }
+      }
+
+      if (downloadItems.length === 0) {
+        throw new Error('Aucun élément disponible pour l\'envoi vers le NAS')
+      }
+
+      const year = item.release_date ? parseInt(item.release_date.slice(0, 4), 10) : undefined
+
+      await apiService.sendToAria2({
+        type: result.type,
+        title: item.title,
+        year: Number.isFinite(year as number) ? year : undefined,
+        season: result.type === 'films' ? undefined : selectedSeason.replace('SAISON_', ''),
+        items: downloadItems.map(d => ({
+          url: d.url,
+          filename: d.filename
+        }))
+      })
+
+      await refetchSessions()
+      onClose()
+    } catch (error) {
+      log.error('Error sending to NAS:', error)
+      const err = error as Error & { code?: string }
+      const isAria2Unreachable = err?.code === 'ARIA2_ERROR'
+      const displayMessage = isAria2Unreachable
+        ? "Votre NAS n'a pas l'air d'être disponible car Aria2 ne répond pas."
+        : (error instanceof Error ? error.message : String(error))
+      setProgressUpdates(prev => [
+        ...prev,
+        {
+          type: 'error',
+          message: displayMessage
+        }
+      ])
+    }
+  }
+
   const handleClose = async () => {
     // Si une vérification est en cours, l'annuler
     if (isChecking && sessionId) {
@@ -516,9 +611,24 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
         )
       })()}
 
+      {/* Erreurs survenues après la vérification (ex. envoi vers NAS) */}
+      {currentProgress === 100 && progressUpdates.some(u => u.type === 'error') && (
+        <div className="space-y-2">
+          {progressUpdates.filter(u => u.type === 'error').map((update, index) => (
+            <div
+              key={index}
+              className="flex items-start space-x-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20"
+            >
+              <FiAlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+              <span className="text-sm text-red-200">{update.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Action buttons */}
       {currentProgress === 100 ? (
-        <div className="flex space-x-3">
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
           <button
             onClick={onClose}
             className="btn-secondary flex-1"
@@ -530,18 +640,34 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
             const availableCount = list.filter(i => i.available).length
             if (availableCount === 0) return null
             return (
-              <button
-                onClick={async () => {
-                  try {
-                    await startClientDownload()
-                  } catch (error) {
-                    log.error('Error starting download:', error)
-                  }
-                }}
-                className="btn-primary flex-1"
-              >
-                {availableCount === 1 ? 'Lancer le téléchargement' : 'Lancer le téléchargement (ZIP)'}
-              </button>
+              <div className="flex flex-1 space-x-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      await startClientDownload()
+                    } catch (error) {
+                      log.error('Error starting download:', error)
+                    }
+                  }}
+                  className="btn-primary flex-1"
+                >
+                  {availableCount === 1 ? 'Télécharger' : 'Télécharger (ZIP)'}
+                </button>
+                {user?.aria2Enabled && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await startNasDownload()
+                      } catch (error) {
+                        log.error('Error sending to NAS:', error)
+                      }
+                    }}
+                    className="btn-secondary flex-1"
+                  >
+                    Télécharger vers NAS
+                  </button>
+                )}
+              </div>
             )
           })()}
         </div>

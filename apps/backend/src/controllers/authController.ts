@@ -3,8 +3,34 @@ import jwt from 'jsonwebtoken'
 import User from '@/models/User'
 import Logger from '@/base/Logger'
 import allDebridService from '@/services/allDebridService'
+import aria2Service from '@/services/aria2Service'
 import { AppError } from '@/middleware/errorHandler'
 import { sendServiceDownAlert } from '@/services/discordWebhookService'
+
+interface Aria2ConfigInput {
+  aria2Enabled?: boolean
+  aria2RpcUrl?: string
+  aria2RpcSecret?: string
+  aria2DownloadBasePath?: string
+  aria2PathFilms?: string
+  aria2PathSeries?: string
+  aria2PathSeriesSeason?: string
+}
+
+const buildUserResponse = (user: any) => ({
+  id: user._id,
+  username: user.username,
+  allDebridApiKey: user.getDecryptedAllDebridApiKey(),
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+  aria2Enabled: user.aria2Enabled ?? false,
+  aria2RpcUrl: user.getDecryptedAria2RpcUrl?.() ?? user.aria2RpcUrl ?? undefined,
+  aria2RpcSecret: user.getDecryptedAria2RpcSecret?.() ?? user.aria2RpcSecret ?? undefined,
+  aria2DownloadBasePath: user.aria2DownloadBasePath ?? undefined,
+  aria2PathFilms: user.aria2PathFilms ?? undefined,
+  aria2PathSeries: user.aria2PathSeries ?? undefined,
+  aria2PathSeriesSeason: user.aria2PathSeriesSeason ?? undefined
+})
 
 /**
  * Generate a JWT token for user authentication
@@ -27,7 +53,22 @@ const generateToken = (userId: string): string => {
  */
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { username, password, allDebridApiKey } = req.body
+    const {
+      username,
+      password,
+      allDebridApiKey,
+      aria2Enabled,
+      aria2RpcUrl,
+      aria2RpcSecret,
+      aria2DownloadBasePath,
+      aria2PathFilms,
+      aria2PathSeries,
+      aria2PathSeriesSeason
+    } = req.body as {
+      username?: string
+      password?: string
+      allDebridApiKey?: string
+    } & Aria2ConfigInput
 
     // Validation des données
     if (!username || !password || !allDebridApiKey) {
@@ -82,7 +123,14 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     const user = new User({
       username: username.toLowerCase(),
       password,
-      allDebridApiKey
+      allDebridApiKey,
+      aria2Enabled: Boolean(aria2Enabled),
+      aria2RpcUrl: aria2RpcUrl || undefined,
+      aria2RpcSecret: aria2RpcSecret || undefined,
+      aria2DownloadBasePath: aria2DownloadBasePath || undefined,
+      aria2PathFilms: aria2PathFilms || undefined,
+      aria2PathSeries: aria2PathSeries || undefined,
+      aria2PathSeriesSeason: aria2PathSeriesSeason || undefined
     })
 
     await user.save()
@@ -92,16 +140,12 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 
     Logger.success(`Nouvel utilisateur créé: ${username}`)
 
+    const userForResponse = await User.findById(user._id).select('+aria2RpcSecret').exec()
     res.status(201).json({
       success: true,
       message: 'Utilisateur créé avec succès',
       data: {
-        user: {
-          id: user._id,
-          username: user.username,
-          allDebridApiKey: user.getDecryptedAllDebridApiKey(),
-          createdAt: user.createdAt
-        },
+        user: buildUserResponse(userForResponse ?? user),
         token
       }
     })
@@ -162,16 +206,12 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
     Logger.success(`Connexion réussie: ${username}`)
 
+    const userForResponse = await User.findById(user._id).select('+aria2RpcSecret').exec()
     res.json({
       success: true,
       message: 'Connexion réussie',
       data: {
-        user: {
-          id: user._id,
-          username: user.username,
-          allDebridApiKey: user.getDecryptedAllDebridApiKey(),
-          createdAt: user.createdAt
-        },
+        user: buildUserResponse(userForResponse ?? user),
         token
       }
     })
@@ -190,18 +230,13 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
  */
 export const getProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = req.user
+    const userWithSecret = await User.findById(req.user!._id).select('+aria2RpcSecret').exec()
+    const user = userWithSecret ?? req.user
 
     res.json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          username: user.username,
-          allDebridApiKey: user.getDecryptedAllDebridApiKey(),
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt
-        }
+        user: buildUserResponse(user)
       }
     })
 
@@ -219,44 +254,79 @@ export const getProfile = async (req: Request, res: Response, next: NextFunction
  */
 export const updateProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { allDebridApiKey } = req.body
+    const {
+      allDebridApiKey,
+      aria2Enabled,
+      aria2RpcUrl,
+      aria2RpcSecret,
+      aria2DownloadBasePath,
+      aria2PathFilms,
+      aria2PathSeries,
+      aria2PathSeriesSeason
+    } = req.body as {
+      allDebridApiKey?: string
+    } & Aria2ConfigInput
     const user = req.user
 
-    if (!allDebridApiKey) {
-      return res.status(400).json({
-        success: false,
-        message: 'La clé API AllDebrid est requise'
-      })
+    // Mettre à jour la clé API uniquement si fournie
+    if (allDebridApiKey) {
+      Logger.info(`Validation de la nouvelle clé API AllDebrid pour l'utilisateur: ${user.username}`)
+      const isApiKeyValid = await allDebridService.validateApiKey(allDebridApiKey)
+      if (!isApiKeyValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'La clé API AllDebrid fournie n\'est pas valide. Veuillez vérifier votre clé sur alldebrid.com'
+        })
+      }
+      Logger.success(`Nouvelle clé API AllDebrid validée pour l'utilisateur: ${user.username}`)
+      user.allDebridApiKey = allDebridApiKey
     }
 
-    // Valider la nouvelle clé API AllDebrid
-    Logger.info(`Validation de la nouvelle clé API AllDebrid pour l'utilisateur: ${user.username}`)
-    const isApiKeyValid = await allDebridService.validateApiKey(allDebridApiKey)
-    if (!isApiKeyValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'La clé API AllDebrid fournie n\'est pas valide. Veuillez vérifier votre clé sur alldebrid.com'
-      })
+    // Mettre à jour la configuration Aria2 si fournie
+    if (typeof aria2Enabled === 'boolean') {
+      user.aria2Enabled = aria2Enabled
+      if (!aria2Enabled) {
+        user.aria2RpcUrl = undefined
+        user.aria2RpcSecret = undefined
+        user.aria2DownloadBasePath = undefined
+        user.aria2PathFilms = undefined
+        user.aria2PathSeries = undefined
+        user.aria2PathSeriesSeason = undefined
+      }
     }
-    Logger.success(`Nouvelle clé API AllDebrid validée pour l'utilisateur: ${user.username}`)
+    if (user.aria2Enabled) {
+      if (typeof aria2RpcUrl === 'string') {
+        user.aria2RpcUrl = aria2RpcUrl || undefined
+      }
+      if (typeof aria2DownloadBasePath === 'string') {
+        user.aria2DownloadBasePath = aria2DownloadBasePath || undefined
+      }
+      if (typeof aria2PathFilms === 'string') {
+        user.aria2PathFilms = aria2PathFilms.trim() || undefined
+      }
+      if (typeof aria2PathSeries === 'string') {
+        user.aria2PathSeries = aria2PathSeries.trim() || undefined
+      }
+      if (typeof aria2PathSeriesSeason === 'string') {
+        user.aria2PathSeriesSeason = aria2PathSeriesSeason.trim() || undefined
+      }
+      if (typeof aria2RpcSecret === 'string' && aria2RpcSecret.trim().length > 0) {
+        user.aria2RpcSecret = aria2RpcSecret
+      }
+    }
 
-    // Mettre à jour la clé API
-    user.allDebridApiKey = allDebridApiKey
     await user.save()
 
     Logger.success(`Profil mis à jour: ${user.username}`)
+
+    const updated = await User.findById(user._id).select('+aria2RpcSecret').exec()
+    const userForResponse = updated ?? user
 
     res.json({
       success: true,
       message: 'Profil mis à jour avec succès',
       data: {
-        user: {
-          id: user._id,
-          username: user.username,
-          allDebridApiKey: user.getDecryptedAllDebridApiKey(),
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt
-        }
+        user: buildUserResponse(userForResponse)
       }
     })
 
@@ -316,6 +386,44 @@ export const validateApiKey = async (req: Request, res: Response, next: NextFunc
   } catch (error: unknown) {
     Logger.error(`Erreur lors de la validation de la clé API: ${error instanceof Error ? error.message : error}`)
     next(error instanceof Error ? error : new AppError('Erreur lors de la validation de la clé API', 500))
+  }
+}
+
+/**
+ * Vérifier la connexion à une instance Aria2 (aria2.getVersion).
+ * Route protégée : évite de sauvegarder une URL invalide.
+ */
+export const verifyAria2 = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { aria2RpcUrl, aria2RpcSecret } = req.body as { aria2RpcUrl?: string; aria2RpcSecret?: string }
+
+    if (!aria2RpcUrl || typeof aria2RpcUrl !== 'string' || !aria2RpcUrl.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'L\'URL RPC Aria2 est requise'
+      })
+    }
+
+    const url = aria2RpcUrl.trim()
+    const secret = typeof aria2RpcSecret === 'string' ? aria2RpcSecret.trim() || undefined : undefined
+
+    try {
+      await aria2Service.verifyConnection(url, secret)
+      res.json({
+        success: true,
+        message: 'Aria2 répond correctement'
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Connexion Aria2 impossible'
+      Logger.debug(`Vérification Aria2 échouée: ${message}`)
+      return res.status(400).json({
+        success: false,
+        message
+      })
+    }
+  } catch (error: unknown) {
+    Logger.error(`Erreur lors de la vérification Aria2: ${error instanceof Error ? error.message : error}`)
+    next(error instanceof Error ? error : new AppError('Erreur lors de la vérification Aria2', 500))
   }
 }
 

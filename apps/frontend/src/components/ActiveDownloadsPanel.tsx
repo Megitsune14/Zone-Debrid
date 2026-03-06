@@ -41,7 +41,7 @@ function getStatusIcon(status: ActiveDownloadStatus) {
 }
 
 export default function ActiveDownloadsPanel() {
-  const { downloads, removeDownload } = useActiveDownloads()
+  const { downloads, removeDownload, cancelDownload } = useActiveDownloads()
   const [isOpen, setIsOpen] = useState(true)
 
   const activeCount = downloads.filter((d) => d.status === 'downloading').length
@@ -78,6 +78,7 @@ export default function ActiveDownloadsPanel() {
               key={d.id}
               download={d}
               onRemove={() => removeDownload(d.id)}
+              onCancel={() => cancelDownload(d.id)}
             />
           ))}
         </div>
@@ -88,12 +89,17 @@ export default function ActiveDownloadsPanel() {
 
 function DownloadRow({
   download,
-  onRemove
+  onRemove,
+  onCancel
 }: {
   download: ActiveDownload
   onRemove: () => void
+  onCancel: () => void
 }) {
-  const { filename, status, progress, totalBytes, errorMessage } = download
+  const { filename, status, progress, totalBytes, errorMessage, speedMBps, type } = download
+  const isAria2 = type === 'aria2'
+  const showCancelAria2 = status === 'downloading' && isAria2
+  const showRemove = (status === 'completed' || status === 'error' || status === 'cancelled') || showCancelAria2
 
   return (
     <div className="p-3 border-b border-brand-border last:border-b-0 bg-brand-surface/80 hover:bg-brand-surface-hover/80 transition-colors">
@@ -108,18 +114,21 @@ function DownloadRow({
               {getStatusLabel(status)}
             </span>
             {status === 'downloading' && (
-              <span className="shrink-0 tabular-nums">
-                {totalBytes != null ? `${Math.round(progress)} %` : '—'}
+              <span className="shrink-0 tabular-nums flex items-center gap-2">
+                {speedMBps > 0 && (
+                  <span>{speedMBps >= 1 ? `${speedMBps.toFixed(1)} Mo/s` : `${(speedMBps * 1024).toFixed(0)} Ko/s`}</span>
+                )}
+                {totalBytes != null ? `${Math.round(progress)} %` : (speedMBps > 0 ? '' : '—')}
               </span>
             )}
           </div>
         </div>
-        {(status === 'completed' || status === 'error' || status === 'cancelled') && (
+        {(showRemove) && (
           <button
             type="button"
-            onClick={onRemove}
+            onClick={showCancelAria2 ? onCancel : onRemove}
             className="p-1.5 text-gray-400 hover:text-white rounded transition-colors shrink-0"
-            title="Fermer"
+            title={showCancelAria2 ? 'Annuler le téléchargement' : 'Fermer'}
           >
             <FiX className="h-4 w-4" />
           </button>

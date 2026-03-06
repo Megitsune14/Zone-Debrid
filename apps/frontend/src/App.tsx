@@ -15,6 +15,7 @@ import MetricsPage from './pages/MetricsPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import TermsOfServicePage from './pages/TermsOfServicePage'
 import FAQPage from './pages/FAQPage'
+import Aria2HelpPage from './pages/Aria2HelpPage'
 import AuthPage from './pages/AuthPage'
 import { FiLoader } from 'react-icons/fi'
 
@@ -109,6 +110,13 @@ const AppContent = () => {
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
               <FAQPage />
             </div>
+          } />
+          <Route path="/aria2-help" element={
+            <ProtectedRoute>
+              <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+                <Aria2HelpPage />
+              </div>
+            </ProtectedRoute>
           } />
         </Routes>
       </main>

@@ -20,6 +20,7 @@ import downloadHistoryRoutes from "@/routes/downloadHistoryRoutes";
 import metricsRoutes from "@/routes/metricsRoutes";
 import clientErrorRoutes from "@/routes/clientErrorRoutes";
 import { notFoundHandler, errorHandler } from "@/middleware/errorHandler";
+import { startAria2Polling } from "@/services/aria2PollingService";
 
 try {
 	// Check Config
@@ -89,6 +90,7 @@ try {
 	Logger.info(`Starting server on port ${port}...`);
 	httpServer.listen(port, () => {
 		Logger.success(`✅ Server is running on port ${port}`);
+		startAria2Polling();
 	});
 
 } catch (error: unknown) {

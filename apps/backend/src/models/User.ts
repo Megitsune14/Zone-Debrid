@@ -7,11 +7,23 @@ export interface IUser extends Document {
   password: string
   allDebridApiKey: string
   masterPassword?: string
+  aria2Enabled: boolean
+  aria2RpcUrl?: string
+  aria2RpcSecret?: string
+  aria2DownloadBasePath?: string
+  /** Chemin de téléchargement pour les films (ex. /media/films) */
+  aria2PathFilms?: string
+  /** Chemin de téléchargement pour les séries (ex. /media/series) */
+  aria2PathSeries?: string
+  /** Nom du dossier de saison, {season} remplacé par le numéro (ex. Saison {season} → Saison 01) */
+  aria2PathSeriesSeason?: string
   createdAt: Date
   updatedAt: Date
   comparePassword(candidatePassword: string): Promise<boolean>
   compareMasterPassword(candidatePassword: string): Promise<boolean>
   getDecryptedAllDebridApiKey(): string
+  getDecryptedAria2RpcUrl(): string | undefined
+  getDecryptedAria2RpcSecret(): string | undefined
 }
 
 const userSchema = new Schema<IUser>({
@@ -38,6 +50,35 @@ const userSchema = new Schema<IUser>({
   masterPassword: {
     type: String,
     trim: true
+  },
+  aria2Enabled: {
+    type: Boolean,
+    default: false
+  },
+  aria2RpcUrl: {
+    type: String,
+    trim: true
+  },
+  aria2RpcSecret: {
+    type: String,
+    trim: true,
+    select: false
+  },
+  aria2DownloadBasePath: {
+    type: String,
+    trim: true
+  },
+  aria2PathFilms: {
+    type: String,
+    trim: true
+  },
+  aria2PathSeries: {
+    type: String,
+    trim: true
+  },
+  aria2PathSeriesSeason: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true
@@ -60,6 +101,16 @@ userSchema.pre('save', async function() {
   // Chiffrer la clé API AllDebrid si elle a été modifiée et n'est pas déjà chiffrée
   if (this.isModified('allDebridApiKey') && !isEncrypted(this.allDebridApiKey)) {
     this.allDebridApiKey = encrypt(this.allDebridApiKey)
+  }
+
+  // Chiffrer l'URL RPC Aria2 si modifiée et non déjà chiffrée
+  if (this.isModified('aria2RpcUrl') && this.aria2RpcUrl && !isEncrypted(this.aria2RpcUrl)) {
+    this.aria2RpcUrl = encrypt(this.aria2RpcUrl)
+  }
+
+  // Chiffrer le secret RPC Aria2 si modifié et non déjà chiffré
+  if (this.isModified('aria2RpcSecret') && this.aria2RpcSecret && !isEncrypted(this.aria2RpcSecret)) {
+    this.aria2RpcSecret = encrypt(this.aria2RpcSecret)
   }
 })
 
@@ -96,6 +147,32 @@ userSchema.methods.getDecryptedAllDebridApiKey = function(): string {
   }
 }
 
+// Méthode pour obtenir l'URL RPC Aria2 déchiffrée
+userSchema.methods.getDecryptedAria2RpcUrl = function(): string | undefined {
+  try {
+    if (!this.aria2RpcUrl) return undefined
+    if (isEncrypted(this.aria2RpcUrl)) {
+      return decrypt(this.aria2RpcUrl)
+    }
+    return this.aria2RpcUrl
+  } catch (error) {
+    throw new Error('Failed to decrypt Aria2 RPC URL')
+  }
+}
+
+// Méthode pour obtenir le secret RPC Aria2 déchiffré
+userSchema.methods.getDecryptedAria2RpcSecret = function(): string | undefined {
+  try {
+    if (!this.aria2RpcSecret) return undefined
+    if (isEncrypted(this.aria2RpcSecret)) {
+      return decrypt(this.aria2RpcSecret)
+    }
+    return this.aria2RpcSecret
+  } catch (error) {
+    throw new Error('Failed to decrypt Aria2 RPC secret')
+  }
+}
+
 // Méthode pour exclure les mots de passe lors de la sérialisation
 userSchema.methods.toJSON = function() {
   const userObject = this.toObject()
@@ -103,6 +180,9 @@ userSchema.methods.toJSON = function() {
   delete userObject.masterPassword
   // Ne pas exposer la clé API chiffrée dans les réponses JSON
   delete userObject.allDebridApiKey
+  // Ne pas exposer les champs Aria2 chiffrés
+  delete (userObject as any).aria2RpcUrl
+  delete (userObject as any).aria2RpcSecret
   return userObject
 }
 

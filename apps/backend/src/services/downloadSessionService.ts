@@ -75,6 +75,29 @@ export async function createZipSession(
   return session
 }
 
+export async function createAria2Session(
+  userId: string,
+  aria2Gid: string,
+  filename: string,
+  historyId?: string
+): Promise<IDownloadSession> {
+  const session = new DownloadSession({
+    userId,
+    filename,
+    totalBytes: null,
+    bytesSent: 0,
+    status: 'queued',
+    startedAt: new Date(),
+    type: 'aria2',
+    aria2Gid,
+    ...(historyId && { historyId }),
+    updatedAt: new Date()
+  })
+  await session.save()
+  Logger.info(`Download session created (aria2): ${session._id} GID=${aria2Gid} for user ${userId}`)
+  return session
+}
+
 export async function getSessionById(sessionId: string): Promise<IDownloadSession | null> {
   return DownloadSession.findById(sessionId).exec()
 }
@@ -105,7 +128,7 @@ export async function setSessionStatus(
   const update: Record<string, unknown> = {
     status,
     updatedAt: new Date(),
-    ...(status !== 'started' && { finishedAt: new Date() }),
+    ...(status !== 'started' && status !== 'queued' && { finishedAt: new Date() }),
     ...(errorMessage && { errorMessage })
   }
   return DownloadSession.findOneAndUpdate(
@@ -115,16 +138,43 @@ export async function setSessionStatus(
   ).exec()
 }
 
+export async function updateAria2SessionProgress(
+  sessionId: string,
+  data: { bytesSent: number; totalBytes?: number | null; status?: IDownloadSession['status']; downloadSpeed?: number; errorMessage?: string }
+): Promise<IDownloadSession | null> {
+  const update: Record<string, unknown> = {
+    bytesSent: data.bytesSent,
+    updatedAt: new Date(),
+    ...(data.totalBytes != null && { totalBytes: data.totalBytes }),
+    ...(data.status && { status: data.status }),
+    ...(data.downloadSpeed != null && { downloadSpeed: data.downloadSpeed }),
+    ...(data.errorMessage != null && { errorMessage: data.errorMessage }),
+    ...(data.status && data.status !== 'started' && data.status !== 'queued' && { finishedAt: new Date() })
+  }
+  return DownloadSession.findOneAndUpdate(
+    { _id: sessionId },
+    update,
+    { returnDocument: 'after' }
+  ).exec()
+}
+
 export async function getActiveSessionsByUserId(userId: string): Promise<IDownloadSession[]> {
-  return DownloadSession.find({ userId, status: 'started' })
+  return DownloadSession.find({ userId, status: { $in: ['started', 'queued'] } })
     .sort({ startedAt: -1 })
+    .lean()
+    .exec() as Promise<IDownloadSession[]>
+}
+
+/** Sessions Aria2 encore en cours (pour le job de polling) */
+export async function getActiveAria2Sessions(): Promise<IDownloadSession[]> {
+  return DownloadSession.find({ type: 'aria2', status: { $in: ['started', 'queued'] } })
     .lean()
     .exec() as Promise<IDownloadSession[]>
 }
 
 export async function cancelSession(sessionId: string, userId: string): Promise<boolean> {
   const session = await getSessionByIdAndUser(sessionId, userId)
-  if (!session || session.status !== 'started') return false
+  if (!session || (session.status !== 'started' && session.status !== 'queued')) return false
   await setSessionStatus(sessionId, 'cancelled')
   Logger.info(`Download session cancelled: ${sessionId}`)
   return true
@@ -149,11 +199,14 @@ export default {
   verifySignature,
   createFileSession,
   createZipSession,
+  createAria2Session,
   getSessionById,
   getSessionByIdAndUser,
   updateBytesSent,
   setSessionStatus,
+  updateAria2SessionProgress,
   getActiveSessionsByUserId,
+  getActiveAria2Sessions,
   cancelSession,
   getSignedDownloadUrl,
   getSignedZipDownloadUrl

@@ -52,6 +52,16 @@ const validateAllDebridApiKey = async (apiKey: string): Promise<{ success: boole
   })
 }
 
+const validateAria2Connection = async (
+  aria2RpcUrl: string,
+  aria2RpcSecret?: string
+): Promise<{ success: boolean; message: string }> => {
+  return request(`${API_CONFIG.AUTH_URL}/verify-aria2`, {
+    method: 'POST',
+    body: { aria2RpcUrl: aria2RpcUrl.trim(), aria2RpcSecret: aria2RpcSecret?.trim() || undefined }
+  })
+}
+
 const deleteAccount = async (password: string): Promise<{ success: boolean; message: string }> => {
   return request(`${API_CONFIG.AUTH_URL}/account`, {
     method: 'DELETE',
@@ -97,6 +107,7 @@ const AuthService = {
   updateProfile,
   updatePassword,
   validateAllDebridApiKey,
+  validateAria2Connection,
   deleteAccount,
   setToken,
   getToken,

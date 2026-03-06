@@ -4,6 +4,13 @@ export interface User {
   allDebridApiKey: string
   createdAt: string
   updatedAt: string
+  aria2Enabled?: boolean
+  aria2RpcUrl?: string
+  aria2RpcSecret?: string
+  aria2DownloadBasePath?: string
+  aria2PathFilms?: string
+  aria2PathSeries?: string
+  aria2PathSeriesSeason?: string
 }
 
 export interface AuthResponse {
@@ -40,7 +47,14 @@ export interface LoginRequest {
 }
 
 export interface UpdateProfileRequest {
-  allDebridApiKey: string
+  allDebridApiKey?: string
+  aria2Enabled?: boolean
+  aria2RpcUrl?: string
+  aria2RpcSecret?: string
+  aria2DownloadBasePath?: string
+  aria2PathFilms?: string
+  aria2PathSeries?: string
+  aria2PathSeriesSeason?: string
 }
 
 export interface AuthState {

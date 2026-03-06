@@ -81,6 +81,16 @@ const updateDownloadHistory = async (
 }
 
 /**
+ * Obtenir un enregistrement d'historique par ID et utilisateur
+ */
+const getDownloadHistoryById = async (
+  downloadId: string,
+  userId: string
+): Promise<IDownloadHistory | null> => {
+  return DownloadHistory.findOne({ _id: downloadId, userId }).exec()
+}
+
+/**
  * Obtenir l'historique des téléchargements d'un utilisateur
  */
 const getUserDownloadHistory = async (
@@ -238,6 +248,7 @@ const getUserDownloadStats = async (userId: string): Promise<{
 const DownloadHistoryService = {
   createDownloadHistory,
   updateDownloadHistory,
+  getDownloadHistoryById,
   getUserDownloadHistory,
   clearUserDownloadHistory,
   deleteUserDownloadHistory,

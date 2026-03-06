@@ -25,6 +25,8 @@ export interface ActiveDownload {
   totalBytes: number | null
   startTime: number
   errorMessage?: string
+  /** 'aria2' pour les téléchargements envoyés au NAS, absent pour les natifs */
+  type?: string
 }
 
 export interface StartDownloadOptions {
@@ -38,6 +40,7 @@ interface ActiveDownloadContextValue {
   startZipDownload: (files: ZipFileItem[], zipFilename: string, options?: StartDownloadOptions) => string
   cancelDownload: (id: string) => void
   removeDownload: (id: string) => void
+  refetchSessions: () => Promise<void>
 }
 
 const ActiveDownloadContext = createContext<ActiveDownloadContextValue | undefined>(undefined)
@@ -52,23 +55,28 @@ function mapServerSessionToDownload(s: {
   status: string
   startedAt: string
   type: string
+  downloadSpeed?: number
+  errorMessage?: string
 }): ActiveDownload {
-  const status = s.status === 'started' ? 'downloading' : (s.status as ActiveDownloadStatus)
+  const status = (s.status === 'started' || s.status === 'queued') ? 'downloading' : (s.status as ActiveDownloadStatus)
   const totalBytes = s.totalBytes ?? null
   const progress = totalBytes != null && totalBytes > 0
     ? Math.min(100, (s.bytesSent / totalBytes) * 100)
     : 0
+  const speedMBps = (s.downloadSpeed != null && s.downloadSpeed > 0) ? s.downloadSpeed / (1024 * 1024) : 0
   return {
     id: s.id,
     url: '',
     filename: s.filename,
     status,
     progress,
-    speedMBps: 0,
+    speedMBps,
     etaSeconds: null,
     bytesReceived: s.bytesSent,
     totalBytes,
-    startTime: new Date(s.startedAt).getTime()
+    startTime: new Date(s.startedAt).getTime(),
+    errorMessage: s.errorMessage,
+    type: s.type
   }
 }
 
@@ -153,9 +161,10 @@ export function ActiveDownloadProvider({ children }: { children: ReactNode }) {
       startDownload,
       startZipDownload,
       cancelDownload,
-      removeDownload
+      removeDownload,
+      refetchSessions: fetchSessions
     }),
-    [visibleDownloads, startDownload, startZipDownload, cancelDownload, removeDownload]
+    [visibleDownloads, startDownload, startZipDownload, cancelDownload, removeDownload, fetchSessions]
   )
 
   return (

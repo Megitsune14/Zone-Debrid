@@ -6,6 +6,8 @@ import downloadService from '@/services/downloadService';
 import allDebridService from '@/services/allDebridService';
 import downloadSessionService from '@/services/downloadSessionService';
 import downloadHistoryService from '@/services/downloadHistoryService';
+import aria2Service from '@/services/aria2Service';
+import { buildMediaPath } from '@/utils/mediaPathBuilder';
 import User from '@/models/User';
 import type { IDownloadSession } from '@/models/DownloadSession';
 import Logger from '@/base/Logger';
@@ -611,7 +613,9 @@ export const getSessions = async (req: Request, res: Response, next: NextFunctio
           bytesSent: s.bytesSent,
           status: s.status,
           startedAt: s.startedAt,
-          type: s.type
+          type: s.type,
+          downloadSpeed: (s as any).downloadSpeed ?? undefined,
+          errorMessage: s.errorMessage
         }))
       });
     }
@@ -640,12 +644,25 @@ export const cancelSession = async (req: Request, res: Response, next: NextFunct
       return res.status(400).json({ success: false, message: 'sessionId requis' });
     }
 
+    const session = await downloadSessionService.getSessionByIdAndUser(sessionId, userId);
+    if (session && (session.status === 'started' || session.status === 'queued') && session.type === 'aria2' && session.aria2Gid) {
+      try {
+        const fullUser = await User.findById(userId).select('+aria2RpcSecret').exec();
+        const rpcUrl = fullUser?.getDecryptedAria2RpcUrl?.();
+        if (rpcUrl) {
+          await aria2Service.remove(rpcUrl, fullUser!.getDecryptedAria2RpcSecret?.(), session.aria2Gid);
+        }
+      } catch (err) {
+        Logger.debug(`Aria2 remove failed for session ${sessionId}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     const cancelled = await downloadSessionService.cancelSession(sessionId, userId);
     if (cancelled) {
-      const session = await downloadSessionService.getSessionByIdAndUser(sessionId, userId);
-      if (session?.historyId) {
+      const updatedSession = await downloadSessionService.getSessionByIdAndUser(sessionId, userId);
+      if (updatedSession?.historyId) {
         await downloadHistoryService.updateDownloadHistory(
-          session.historyId,
+          updatedSession.historyId,
           userId,
           { status: 'cancelled', endTime: new Date() }
         ).catch(() => {});
@@ -704,6 +721,157 @@ export const cancelDownloadCheck = async (req: Request, res: Response, next: Nex
   } catch (error: unknown) {
     Logger.error(`Cancel download check error: ${error instanceof Error ? error.message : error}`);
     next(error instanceof Error ? error : new AppError('Erreur lors de l\'annulation de la vérification', 500));
+  }
+};
+
+interface Aria2DownloadItem {
+  url: string;
+  filename: string;
+}
+
+interface Aria2DownloadRequestBody {
+  type: 'films' | 'series' | 'mangas';
+  title: string;
+  year?: number;
+  season?: string | number;
+  items: Aria2DownloadItem[];
+}
+
+/**
+ * Envoyer un ou plusieurs téléchargements vers Aria2 (NAS utilisateur).
+ */
+export const sendToAria2 = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authUser = req.user;
+    if (!authUser?.id) {
+      return res.status(401).json({ success: false, message: 'Non authentifié' });
+    }
+
+    const { type, title, year, season, items } = req.body as Aria2DownloadRequestBody;
+
+    if (!type || !title || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'type, title et items sont requis'
+      });
+    }
+
+    if (!['films', 'series', 'mangas'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'type doit être films, series ou mangas'
+      });
+    }
+
+    // Recharger l'utilisateur complet avec le secret Aria2
+    const user = await User.findById(authUser._id).select('+aria2RpcSecret').exec();
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+
+    if (!user.aria2Enabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'La fonctionnalité Aria2 n\'est pas activée pour cet utilisateur'
+      });
+    }
+
+    const aria2RpcUrl = user.getDecryptedAria2RpcUrl();
+    if (!aria2RpcUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Configuration Aria2 incomplète (URL RPC manquante)'
+      });
+    }
+    const hasBasePath = Boolean(user.aria2DownloadBasePath?.trim());
+    const hasPathFilms = Boolean(user.aria2PathFilms?.trim());
+    const hasPathSeries = Boolean(user.aria2PathSeries?.trim());
+    if (!hasBasePath && !hasPathFilms && !hasPathSeries) {
+      return res.status(400).json({
+        success: false,
+        message: 'Configurez au moins un chemin : chemin de base ou chemins films/séries dans les paramètres Aria2'
+      });
+    }
+
+    const results: Array<{ filename: string; gid: string; sessionId: string }> = [];
+    const historyFiles = items.filter((i): i is { url: string; filename: string } => !!i?.url).map((i) => ({
+      url: i.url,
+      filename: i.filename
+    }));
+
+    const history = await downloadHistoryService.createDownloadHistory({
+      userId: user._id.toString(),
+      title,
+      type,
+      files: historyFiles
+    });
+    const historyId = history._id.toString();
+
+    for (const item of items) {
+      if (!item?.url) continue;
+      const path = buildMediaPath({
+        basePath: user.aria2DownloadBasePath ?? '',
+        type,
+        title,
+        year,
+        season,
+        originalFilename: item.filename,
+        pathFilms: user.aria2PathFilms,
+        pathSeries: user.aria2PathSeries,
+        pathSeriesSeason: user.aria2PathSeriesSeason
+      });
+
+      let gid: string;
+      try {
+        gid = await aria2Service.addDownload(
+          aria2RpcUrl,
+          user.getDecryptedAria2RpcSecret?.(),
+          item.url,
+          { dir: path.dir, out: path.out }
+        );
+      } catch (err) {
+        Logger.error(`Aria2 addDownload failed for ${item.filename}: ${err instanceof Error ? err.message : String(err)}`);
+        await downloadHistoryService.updateDownloadHistory(historyId, user._id.toString(), {
+          status: 'error',
+          endTime: new Date(),
+          errorMessage: err instanceof Error ? err.message : 'Erreur Aria2'
+        });
+        throw err;
+      }
+
+      const session = await downloadSessionService.createAria2Session(
+        user._id.toString(),
+        gid,
+        item.filename,
+        historyId
+      );
+
+      results.push({
+        filename: item.filename,
+        gid,
+        sessionId: session._id.toString()
+      });
+    }
+
+    if (results.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucun élément valide à envoyer à Aria2'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Téléchargements envoyés à Aria2',
+      data: {
+        items: results,
+        sessions: results.map((r) => ({ id: r.sessionId, filename: r.filename, gid: r.gid }))
+      }
+    });
+  } catch (error: unknown) {
+    const rawMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+    Logger.error(`sendToAria2 error: ${rawMessage}`);
+    next(error instanceof Error ? new AppError(rawMessage, 502, 'ARIA2_ERROR') : new AppError(rawMessage, 502, 'ARIA2_ERROR'));
   }
 };
 

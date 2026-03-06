@@ -11,12 +11,12 @@ export interface IDownloadSession extends Document {
   filename: string
   totalBytes: number | null
   bytesSent: number
-  status: 'started' | 'completed' | 'aborted' | 'error' | 'cancelled'
+  status: 'started' | 'completed' | 'aborted' | 'error' | 'cancelled' | 'queued'
   startedAt: Date
   finishedAt?: Date
   errorMessage?: string
-  /** 'file' = single file via sourceUrl; 'zip' = stream zip from zipFiles */
-  type: 'file' | 'zip'
+  /** 'file' = single file via sourceUrl; 'zip' = stream zip from zipFiles; 'aria2' = sent to Aria2 */
+  type: 'file' | 'zip' | 'aria2'
   /** AllDebrid URL for single-file download */
   sourceUrl?: string
   /** For type=zip */
@@ -24,6 +24,10 @@ export interface IDownloadSession extends Document {
   zipFiles?: IZipFileEntry[]
   /** Optional link to download history for updating status when session ends */
   historyId?: string
+  /** For type=aria2: Aria2 GID */
+  aria2Gid?: string
+  /** For type=aria2: current download speed in bytes/sec (updated by polling) */
+  downloadSpeed?: number
   createdAt: Date
   updatedAt: Date
 }
@@ -46,18 +50,20 @@ const DownloadSessionSchema = new Schema<IDownloadSession>({
   bytesSent: { type: Number, default: 0 },
   status: {
     type: String,
-    enum: ['started', 'completed', 'aborted', 'error', 'cancelled'],
+    enum: ['started', 'completed', 'aborted', 'error', 'cancelled', 'queued'],
     default: 'started',
     index: true
   },
   startedAt: { type: Date, required: true, default: Date.now },
   finishedAt: { type: Date },
   errorMessage: { type: String },
-  type: { type: String, enum: ['file', 'zip'], required: true },
+  type: { type: String, enum: ['file', 'zip', 'aria2'], required: true },
   sourceUrl: { type: String },
   zipFilename: { type: String },
   zipFiles: [ZipFileEntrySchema],
   historyId: { type: String },
+  aria2Gid: { type: String },
+  downloadSpeed: { type: Number },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 })

@@ -123,6 +123,8 @@ type SessionItem = {
   status: string
   startedAt: string
   type: string
+  downloadSpeed?: number
+  errorMessage?: string
 }
 
 const getActiveDownloadSessions = async (): Promise<SessionItem[]> => {
@@ -140,6 +142,33 @@ const getActiveDownloadSessions = async (): Promise<SessionItem[]> => {
 const cancelDownloadSession = async (sessionId: string): Promise<void> => {
   await request(`${API_CONFIG.DOWNLOADS_URL}/sessions/${sessionId}/cancel`, {
     method: 'POST'
+  })
+}
+
+interface Aria2DownloadItem {
+  url: string
+  filename: string
+}
+
+interface Aria2DownloadRequest {
+  type: 'films' | 'series' | 'mangas'
+  title: string
+  year?: number
+  season?: string | number
+  items: Aria2DownloadItem[]
+}
+
+const sendToAria2 = async (payload: Aria2DownloadRequest): Promise<{
+  success: boolean
+  message: string
+  data?: {
+    items: { filename: string; gid: string; sessionId?: string }[]
+    sessions?: { id: string; filename: string; gid: string }[]
+  }
+}> => {
+  return request(`${API_CONFIG.DOWNLOADS_URL}/aria2`, {
+    method: 'POST',
+    body: payload
   })
 }
 
@@ -171,7 +200,8 @@ const ApiService = {
   getSignedProxyUrl,
   getSignedProxyZipUrl,
   getActiveDownloadSessions,
-  cancelDownloadSession
+  cancelDownloadSession,
+  sendToAria2
 };
 
 export default ApiService

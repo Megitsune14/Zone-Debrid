@@ -9,7 +9,8 @@ import {
   streamProxy,
   streamZip,
   getSessions,
-  cancelSession
+  cancelSession,
+  sendToAria2
 } from '@/controllers/downloadController';
 import { auth } from '@/middleware/auth';
 
@@ -37,6 +38,9 @@ router.post('/signed-proxy/zip', getSignedProxyZip);
 // Sessions actives (pour le panel)
 router.get('/sessions', getSessions);
 router.post('/sessions/:sessionId/cancel', cancelSession);
+
+// Envoi vers Aria2 (NAS)
+router.post('/aria2', sendToAria2);
 
 // Proxy de téléchargement legacy (HTTP Range Request, 206)
 router.get('/proxy', downloadProxy);
