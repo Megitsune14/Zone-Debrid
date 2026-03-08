@@ -39,8 +39,8 @@ export default function AdminDownloadsPage () {
   const [downloadsLimit, setDownloadsLimit] = useState(20)
   const [downloadsTotalPages, setDownloadsTotalPages] = useState(0)
   const [downloadsLoading, setDownloadsLoading] = useState(false)
-  const [downloadsSortBy, setDownloadsSortBy] = useState('createdAt')
-  const [downloadsSortOrder, setDownloadsSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [downloadsSortBy, _setDownloadsSortBy] = useState('createdAt')
+  const [downloadsSortOrder, _setDownloadsSortOrder] = useState<'asc' | 'desc'>('desc')
   const [downloadsFilterStatus, setDownloadsFilterStatus] = useState('')
   const [downloadsFilterType, setDownloadsFilterType] = useState('')
   const [downloadsSearch, setDownloadsSearch] = useState('')
@@ -211,7 +211,7 @@ export default function AdminDownloadsPage () {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
                           outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"

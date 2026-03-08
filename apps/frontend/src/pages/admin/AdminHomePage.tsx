@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { FiUsers, FiDownload, FiClock, FiBarChart, FiList, FiSearch, FiUserPlus } from 'react-icons/fi'
+import { FiUsers, FiDownload, FiClock, FiBarChart, FiSearch, FiUserPlus } from 'react-icons/fi'
 import adminService from '../../services/adminService'
 
 const quickLinks = [
