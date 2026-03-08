@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { FiServer, FiDownloadCloud, FiTerminal, FiFolder, FiInfo, FiSettings } from 'react-icons/fi'
+import { FiServer, FiDownloadCloud, FiTerminal, FiFolder, FiInfo, FiSettings, FiRefreshCw } from 'react-icons/fi'
 
 const Aria2HelpPage = () => {
   useEffect(() => {
@@ -90,6 +90,17 @@ mkdir -p /home/Megitsune/aria2-config`}
             </pre>
             <p className="text-xs text-gray-400 mt-2">
               Adaptez les chemins à votre système (utilisateur, disque, etc.).
+            </p>
+            <p className="font-semibold text-white mt-3">Donner à Aria2 l&apos;accès au dossier media</p>
+            <p className="text-xs text-gray-300 mt-1">
+              Le conteneur Aria2 doit pouvoir écrire dans le dossier des téléchargements. Exécutez ces commandes sur l&apos;hôte en remplaçant <code className="font-mono text-gray-200">TonDossier</code> par votre chemin (ex. <code className="font-mono text-gray-200">/home/Megitsune</code>)&nbsp;:
+            </p>
+            <pre className="bg-black/40 text-gray-100 text-xs rounded p-2 mt-2 overflow-x-auto">
+{`chown -R 1000:1000 TonDossier/media
+chmod -R 775 TonDossier/media`}
+            </pre>
+            <p className="text-xs text-gray-400 mt-2">
+              <code className="font-mono text-gray-200">1000:1000</code> correspond en général à l&apos;utilisateur du conteneur Aria2. Ajustez si besoin selon votre configuration.
             </p>
           </div>
 
@@ -293,11 +304,54 @@ sudo chmod 777 /media`}
           </p>
         </section>
 
-        {/* Section 6 — Utilisation */}
+        {/* Section 6 — Actualisation Plex / Jellyfin */}
+        <section className="card">
+          <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
+            <FiRefreshCw className="h-5 w-5 text-cyan-400" />
+            6. Actualiser la librairie Plex ou Jellyfin
+          </h2>
+          <div className="space-y-3 text-gray-300 leading-relaxed">
+            <p>
+              Pour que les nouveaux fichiers apparaissent automatiquement dans Plex ou Jellyfin, vous pouvez déclencher un rafraîchissement de la librairie à la fin de chaque téléchargement. Avec l&apos;image Docker <code className="font-mono text-gray-200">p3terx/aria2-pro</code>, le dossier <strong className="text-white">script</strong> contient un fichier <code className="font-mono text-gray-200">clean.sh</code> qui est exécuté lorsqu&apos;un téléchargement est terminé.
+            </p>
+            <p>
+              Éditez <code className="font-mono text-gray-200">clean.sh</code> (sur l&apos;hôte, dans le dossier monté en <code className="font-mono text-gray-200">/config</code>, par ex. <code className="font-mono text-gray-200">TonDossier/aria2-config/script/clean.sh</code>) et ajoutez l&apos;une des commandes ci-dessous. Remplacez <code className="font-mono text-gray-200">VOTRE_JELLYFIN_API_KEY</code> ou <code className="font-mono text-gray-200">VOTRE_PLEX_TOKEN</code> par votre clé API ou token.
+            </p>
+
+            <div className="space-y-4 mt-4">
+              <div>
+                <p className="font-semibold text-white mb-2">Jellyfin</p>
+                <pre className="bg-black/60 text-gray-100 text-sm rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
+{`sleep 5
+
+curl -s -X POST "http://localhost:8096/Library/Refresh" -H "X-Emby-Token: VOTRE_JELLYFIN_API_KEY"
+
+echo "Refresh Jellyfin lancé"`}
+                </pre>
+              </div>
+              <div>
+                <p className="font-semibold text-white mb-2">Plex</p>
+                <pre className="bg-black/60 text-gray-100 text-sm rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
+{`sleep 5
+
+curl -s "http://localhost:32400/library/sections/all/refresh?X-Plex-Token=VOTRE_PLEX_TOKEN"
+
+echo "Refresh Plex lancé"`}
+                </pre>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-400">
+              Le <code className="font-mono text-gray-200">sleep 5</code> laisse le temps au fichier d&apos;être bien enregistré avant le scan. Si Plex ou Jellyfin ne tournent pas sur la même machine que le conteneur Aria2.
+            </p>
+          </div>
+        </section>
+
+        {/* Section 7 — Utilisation */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <FiFolder className="h-5 w-5 text-lime-400" />
-            6. Utilisation au quotidien
+            7. Utilisation au quotidien
           </h2>
           <div className="space-y-3 text-gray-300 leading-relaxed">
             <p>
