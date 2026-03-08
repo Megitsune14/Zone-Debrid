@@ -2,6 +2,7 @@ export interface User {
   id: string
   username: string
   allDebridApiKey: string
+  isAdmin?: boolean
   createdAt: string
   updatedAt: string
   aria2Enabled?: boolean

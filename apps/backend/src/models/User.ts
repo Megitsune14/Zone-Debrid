@@ -6,6 +6,8 @@ export interface IUser extends Document {
   username: string
   password: string
   allDebridApiKey: string
+  /** 'admin' = accès back-office (metrics, users CRUD) */
+  role: 'user' | 'admin'
   masterPassword?: string
   aria2Enabled: boolean
   aria2RpcUrl?: string
@@ -46,6 +48,11 @@ const userSchema = new Schema<IUser>({
     type: String,
     required: [true, 'La clé API AllDebrid est requise'],
     trim: true
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
   },
   masterPassword: {
     type: String,

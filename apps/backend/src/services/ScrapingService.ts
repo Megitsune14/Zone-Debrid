@@ -86,7 +86,8 @@ interface SearchResult {
 const normalizeString = (input: string): string => {
   return input
     .toLowerCase()
-    .replace(/[\u00AE\u00A9\u2122\u2120\u2117]/gu, ' ') // ® © ™ ℠ ℗
+    .replace(/[’']/g, '')
+    .replace(/[\u00AE\u00A9\u2122\u2120\u2117]/gu, ' ')
     .replace(/\((?:tm|sm|r|c|p)\)/gi, ' ')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -796,11 +797,14 @@ const scrapeSeriesDetails = async (item: RawSearchItem, query: string, signal?: 
           const season = seasonMatch[1];
           const languageQuality = seasonMatch[2].trim();
           
-          // Parser la langue et qualité depuis "VF HD" ou "VOSTFR HD"
-          const langQualMatch = languageQuality.match(/^([A-Z]+)(?:\s+(HD))?$/i);
+          // Parser la langue et qualité (VF, VOSTFR, MULTI, HD, 720p, 1080p, 4K UHD, etc.)
+          const langQualMatch = languageQuality.match(/^([A-Z]+)\s*(.*)$/i);
           if (langQualMatch) {
             const language = langQualMatch[1].toUpperCase();
-            const quality = langQualMatch[2] ? langQualMatch[2].toUpperCase() : 'NORMAL';
+            const qualityRaw = langQualMatch[2].trim();
+            const quality = qualityRaw
+              ? qualityRaw.replace(/\s+/g, '_').toUpperCase()
+              : 'NORMAL';
             const seasonKey = `SAISON_${season}`;
             
             if (!seasons[seasonKey]) {
@@ -818,11 +822,14 @@ const scrapeSeriesDetails = async (item: RawSearchItem, query: string, signal?: 
           if (qualityMatch && currentSeason) {
             const languageQuality = qualityMatch[1].trim();
             
-            // Parser la langue et qualité depuis "VF HD" ou "VOSTFR HD"
-            const langQualMatch = languageQuality.match(/^([A-Z]+)(?:\s+(HD))?$/i);
+            // Parser la langue et qualité (VF, VOSTFR, MULTI, HD, 720p, 1080p, 4K UHD, etc.)
+            const langQualMatch = languageQuality.match(/^([A-Z]+)\s*(.*)$/i);
             if (langQualMatch) {
               const language = langQualMatch[1].toUpperCase();
-              const quality = langQualMatch[2] ? langQualMatch[2].toUpperCase() : 'NORMAL';
+              const qualityRaw = langQualMatch[2].trim();
+              const quality = qualityRaw
+                ? qualityRaw.replace(/\s+/g, '_').toUpperCase()
+                : 'NORMAL';
               const seasonKey = `SAISON_${currentSeason}`;
               
               if (!seasons[seasonKey]) {
@@ -836,6 +843,36 @@ const scrapeSeriesDetails = async (item: RawSearchItem, query: string, signal?: 
             }
           }
         }
+      }
+    });
+    
+    // Parser les liens "Saisons également disponibles" / "Qualités également disponibles" (hors .otherversions)
+    $('a').each((_, element) => {
+      const $el = $(element);
+      const href = $el.attr('href');
+      const text = $el.text().replace(/\s+/g, ' ').trim();
+      const match = text.match(/Saison\s*(\d+)\s*\(([^)]+)\)/i);
+      if (!match || !href) return;
+      const season = match[1];
+      const languageQuality = match[2].trim();
+      const langQualMatch = languageQuality.match(/^([A-Z]+)\s*(.*)$/i);
+      if (!langQualMatch) return;
+      const language = langQualMatch[1].toUpperCase();
+      const qualityRaw = langQualMatch[2].trim();
+      const quality = qualityRaw
+        ? qualityRaw.replace(/\s+/g, '_').toUpperCase()
+        : 'NORMAL';
+      const seasonKey = `SAISON_${season}`;
+      if (!seasons[seasonKey]) {
+        seasons[seasonKey] = { episodes: undefined, versions: {} };
+      }
+      if (!seasons[seasonKey].versions[language]) {
+        seasons[seasonKey].versions[language] = {};
+      }
+      const fullLink = toAbsolute(href);
+      if (!fullLink) return;
+      if (!seasons[seasonKey].versions[language][quality]) {
+        seasons[seasonKey].versions[language][quality] = { link: fullLink };
       }
     });
     

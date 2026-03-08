@@ -32,6 +32,25 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
   }
 }
 
+/** Exige un utilisateur authentifié avec rôle admin */
+export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentification requise'
+    })
+  }
+  const u = req.user as any
+  const isAdmin = u.role === 'admin'
+  if (!isAdmin) {
+    return res.status(403).json({
+      success: false,
+      message: 'Accès réservé aux administrateurs'
+    })
+  }
+  next()
+}
+
 export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '')

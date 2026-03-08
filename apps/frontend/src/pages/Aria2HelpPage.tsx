@@ -61,49 +61,11 @@ const Aria2HelpPage = () => {
           </div>
         </section>
 
-        {/* Section 2 — Informations nécessaires */}
-        <section className="card">
-          <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
-            <FiSettings className="h-5 w-5 text-purple-400" />
-            2. Informations à renseigner dans Zone-Debrid
-          </h2>
-          <p className="text-gray-300 mb-3">
-            Pour activer la fonctionnalité <strong className="text-white">Télécharger vers NAS</strong>, vous devez connaître&nbsp;:
-          </p>
-          <ul className="list-disc list-inside space-y-2 text-gray-300">
-            <li><strong className="text-white">URL RPC Aria2</strong> — l&apos;adresse de l&apos;API JSON‑RPC.</li>
-            <li><strong className="text-white">RPC Secret</strong> — le mot de passe/API key d&apos;Aria2.</li>
-            <li><strong className="text-white">Chemin de téléchargement de base</strong> — le dossier racine sur votre NAS.</li>
-          </ul>
-
-          <div className="mt-4 p-4 rounded-lg bg-brand-surface border border-brand-border text-sm text-gray-200 space-y-3">
-            <p className="font-semibold text-white">Exemple de configuration&nbsp;:</p>
-            <div>
-              <p className="text-gray-400">URL RPC Aria2</p>
-              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
-                http://192.168.1.10:6800/jsonrpc
-              </code>
-            </div>
-            <div>
-              <p className="text-gray-400">RPC Secret</p>
-              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
-                monSecretAria2
-              </code>
-            </div>
-            <div>
-              <p className="text-gray-400">Chemin de téléchargement de base</p>
-              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
-                /media
-              </code>
-            </div>
-          </div>
-        </section>
-
-        {/* Section 3 — Installation avec Docker */}
+        {/* Section 2 — Installation avec Docker */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <FiServer className="h-5 w-5 text-emerald-400" />
-            3. Installation avec Docker (recommandé)
+            2. Installation avec Docker (recommandé)
           </h2>
 
           <div className="space-y-3 text-gray-300 leading-relaxed">
@@ -112,44 +74,73 @@ const Aria2HelpPage = () => {
             </p>
             <p>Prérequis&nbsp;:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Docker ou Docker Compose installé.</li>
-              <li>Un dossier de stockage (ex&nbsp;: <code className="font-mono text-gray-200">/media</code>).</li>
+              <li>Docker installé.</li>
+              <li>Un dossier pour la configuration Aria2 et un dossier pour les téléchargements (ex&nbsp;: <code className="font-mono text-gray-200">/media</code>).</li>
             </ul>
           </div>
 
-          <div className="mt-4">
-            <p className="text-sm text-gray-400 mb-2">Exemple de <code className="font-mono text-gray-200">docker-compose.yml</code>&nbsp;:</p>
-            <pre className="bg-black/60 text-gray-100 text-sm rounded-lg p-4 overflow-x-auto">
-{`version: "3"
-
-services:
-  aria2:
-    image: p3terx/aria2-pro
-    container_name: aria2
-    restart: unless-stopped
-    ports:
-      - "6800:6800"
-    volumes:
-      - /media:/downloads
-      - ./aria2-config:/config
-    environment:
-      - RPC_SECRET=monSecretAria2`}
+          <div className="mt-4 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-gray-200 space-y-1">
+            <p className="font-semibold text-white">Conseil avant de lancer la commande</p>
+            <p>
+              Il est conseillé de créer au préalable le dossier des téléchargements (et éventuellement le dossier de configuration) pour éviter tout problème au démarrage du conteneur&nbsp;:
+            </p>
+            <pre className="bg-black/40 text-gray-100 text-xs rounded p-2 mt-2 overflow-x-auto">
+{`mkdir -p /home/Megitsune/media
+mkdir -p /home/Megitsune/aria2-config`}
             </pre>
+            <p className="text-xs text-gray-400 mt-2">
+              Adaptez les chemins à votre système (utilisateur, disque, etc.).
+            </p>
           </div>
 
-          <div className="mt-4 space-y-2 text-gray-300 text-sm">
-            <p><strong className="text-white">Étapes&nbsp;:</strong></p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>Créez un dossier pour votre configuration (ex&nbsp;: <code className="font-mono text-gray-200">aria2-config</code>).</li>
-              <li>Créez un fichier <code className="font-mono text-gray-200">docker-compose.yml</code> avec le contenu ci‑dessus.</li>
-              <li>Adaptez le chemin <code className="font-mono text-gray-200">/media</code> vers le dossier de votre NAS.</li>
-              <li>Choisissez un secret sécurisé pour <code className="font-mono text-gray-200">RPC_SECRET</code>.</li>
-              <li>Lancez&nbsp;:
-                <pre className="bg-black/60 text-gray-100 text-xs rounded mt-1 p-2 inline-block">
-docker compose up -d
-                </pre>
-              </li>
-            </ol>
+          <div className="mt-4">
+            <p className="text-sm font-semibold text-white mb-2">Commande exemple (à copier-coller puis adapter)</p>
+            <p className="text-sm text-gray-400 mb-2">
+              Remplacez <code className="font-mono text-gray-200">TonDossier</code> par le chemin de votre choix (ex. <code className="font-mono text-gray-200">/home/Megitsune</code>) et <code className="font-mono text-gray-200">TonSecret</code> par votre secret RPC.
+            </p>
+            <pre className="bg-black/60 text-gray-100 text-sm rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-all">
+{`docker run -d --name aria2 -p 6800:6800 -p 6888:6888 -p 6888:6888/udp -v TonDossier/aria2-config:/config -v TonDossier:/media -e RPC_SECRET=TonSecret --restart unless-stopped p3terx/aria2-pro`}
+            </pre>
+
+            <p className="text-sm font-semibold text-white mt-6 mb-2">Détail des options</p>
+            <div className="space-y-4 text-sm text-gray-300">
+              <div>
+                <code className="block bg-black/40 text-gray-100 rounded px-2 py-1 font-mono text-xs mb-1">-d</code>
+                <p>Permet de lancer le conteneur en arrière-plan (mode détaché), sans bloquer le terminal.</p>
+              </div>
+              <div>
+                <code className="block bg-black/40 text-gray-100 rounded px-2 py-1 font-mono text-xs mb-1">--name aria2</code>
+                <p>Donne un nom au conteneur pour pouvoir le gérer facilement (ex. <code className="font-mono text-gray-200">docker stop aria2</code>).</p>
+              </div>
+              <div>
+                <code className="block bg-black/40 text-gray-100 rounded px-2 py-1 font-mono text-xs mb-1">-p 6800:6800</code>
+                <p>Expose le port de l&apos;API RPC. Obligatoire pour que Zone-Debrid puisse envoyer les téléchargements à Aria2.</p>
+              </div>
+              <div>
+                <code className="block bg-black/40 text-gray-100 rounded px-2 py-1 font-mono text-xs mb-1">-p 6888:6888 -p 6888:6888/udp</code>
+                <p>Expose le port du protocole BitTorrent (TCP et UDP) pour les téléchargements en peer-to-peer.</p>
+              </div>
+              <div>
+                <code className="block bg-black/40 text-gray-100 rounded px-2 py-1 font-mono text-xs mb-1">-v TonDossier/aria2-config:/config</code>
+                <p>Monte un dossier de l&apos;hôte dans le conteneur pour la configuration Aria2. Les réglages sont ainsi conservés après redémarrage.</p>
+              </div>
+              <div>
+                <code className="block bg-black/40 text-gray-100 rounded px-2 py-1 font-mono text-xs mb-1">-v TonDossier:/media</code>
+                <p>Monte le dossier où seront enregistrés les fichiers téléchargés. C&apos;est ce chemin (<code className="font-mono text-gray-200">/media</code> dans le conteneur) que vous pourrez utiliser comme base dans Zone-Debrid.</p>
+              </div>
+              <div>
+                <code className="block bg-black/40 text-gray-100 rounded px-2 py-1 font-mono text-xs mb-1">-e RPC_SECRET=TonSecret</code>
+                <p>Définit le secret RPC. À garder confidentiel et à renseigner dans Zone-Debrid pour s&apos;authentifier auprès d&apos;Aria2.</p>
+              </div>
+              <div>
+                <code className="block bg-black/40 text-gray-100 rounded px-2 py-1 font-mono text-xs mb-1">--restart unless-stopped</code>
+                <p>Redémarre automatiquement le conteneur après un reboot de la machine ou en cas de crash.</p>
+              </div>
+              <div>
+                <code className="block bg-black/40 text-gray-100 rounded px-2 py-1 font-mono text-xs mb-1">p3terx/aria2-pro</code>
+                <p>Image Docker utilisée (Aria2 avec interface WebUI et fonctionnalités étendues).</p>
+              </div>
+            </div>
           </div>
 
           <div className="mt-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-sm text-gray-200 space-y-1">
@@ -159,14 +150,17 @@ docker compose up -d
               <br />
               <code className="font-mono text-gray-100">http://IP_DU_SERVEUR:6800/jsonrpc</code>
             </p>
+            <p className="mt-2">
+              Dans Zone-Debrid, le <strong className="text-white">chemin de base</strong> à renseigner pour les téléchargements correspond au chemin <strong>à l&apos;intérieur du conteneur</strong>, par exemple <code className="font-mono text-gray-100">/media</code> (comme dans le volume <code className="font-mono text-gray-100">-v ... :/media</code>).
+            </p>
           </div>
         </section>
 
-        {/* Section 4 — Installation via SSH */}
+        {/* Section 3 — Installation via SSH */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <FiTerminal className="h-5 w-5 text-amber-400" />
-            4. Installation via SSH (sans Docker)
+            3. Installation via SSH (sans Docker)
           </h2>
 
           <div className="space-y-3 text-gray-300 leading-relaxed">
@@ -220,11 +214,11 @@ sudo chmod 777 /media`}
           </div>
         </section>
 
-        {/* Section 5 — Vérifier qu'Aria2 fonctionne */}
+        {/* Section 4 — Vérifier qu'Aria2 fonctionne */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <FiServer className="h-5 w-5 text-sky-400" />
-            5. Vérifier que Aria2 fonctionne
+            4. Vérifier que Aria2 fonctionne
           </h2>
           <p className="text-gray-300 mb-3">
             Depuis votre machine ou un terminal sur le même réseau&nbsp;:
@@ -237,31 +231,73 @@ sudo chmod 777 /media`}
           </p>
         </section>
 
-        {/* Section 6 — Configuration dans Zone-Debrid */}
+        {/* Section 5 — Informations à renseigner dans Zone-Debrid */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
-            <FiSettings className="h-5 w-5 text-pink-400" />
-            6. Configuration dans Zone-Debrid
+            <FiSettings className="h-5 w-5 text-purple-400" />
+            5. Informations à renseigner dans Zone-Debrid
           </h2>
-          <ol className="list-decimal list-inside space-y-2 text-gray-300 leading-relaxed">
-            <li>Ouvrez la page <strong className="text-white">Paramètres</strong> dans Zone-Debrid.</li>
-            <li>Dans la section <strong className="text-white">Téléchargement vers NAS (Aria2)</strong>, activez le switch.</li>
-            <li>Renseignez&nbsp;:
-              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                <li><strong>Aria2 RPC URL</strong> — ex&nbsp;: <code className="font-mono text-gray-200">http://IP_DU_SERVEUR:6800/jsonrpc</code></li>
-                <li><strong>RPC Secret</strong> — ex&nbsp;: <code className="font-mono text-gray-200">monSecretAria2</code></li>
-                <li><strong>Chemin de téléchargement</strong> — ex&nbsp;: <code className="font-mono text-gray-200">/media</code></li>
-              </ul>
-            </li>
-            <li>Cliquez sur <strong className="text-white">Mettre à jour la configuration Aria2</strong>.</li>
-          </ol>
+          <p className="text-gray-300 mb-3">
+            Pour activer la fonctionnalité <strong className="text-white">Télécharger vers NAS</strong>, ouvrez <strong className="text-white">Paramètres</strong>, activez la section Aria2, puis renseignez&nbsp;:
+          </p>
+          <ul className="list-disc list-inside space-y-2 text-gray-300">
+            <li><strong className="text-white">URL RPC Aria2</strong> — l&apos;adresse de l&apos;API JSON‑RPC (ex. <code className="font-mono text-gray-200">http://IP:6800/jsonrpc</code>).</li>
+            <li><strong className="text-white">Secret RPC Aria2</strong> — le secret défini avec <code className="font-mono text-gray-200">RPC_SECRET</code> au lancement du conteneur.</li>
+            <li><strong className="text-white">Chemin de base des téléchargements</strong> — point de départ utilisé pour tous les chemins (ex. <code className="font-mono text-gray-200">/media</code>). Obligatoire.</li>
+            <li><strong className="text-white">Chemin de téléchargement pour films</strong> — optionnel. Si vide, Zone-Debrid utilise <code className="font-mono text-gray-200">&#123;chemin de base&#125;/films</code>. Sous-dossiers titre (année) créés automatiquement.</li>
+            <li><strong className="text-white">Chemin de téléchargement pour séries</strong> — optionnel. Si vide, Zone-Debrid utilise <code className="font-mono text-gray-200">&#123;chemin de base&#125;/series</code>. Sous-dossiers série puis saison créés automatiquement.</li>
+            <li><strong className="text-white">Chemin de téléchargement pour saison de série</strong> — optionnel. Si vide, Zone-Debrid utilise <code className="font-mono text-gray-200">Saison 01</code>, <code className="font-mono text-gray-200">Saison 02</code>, etc. Vous pouvez personnaliser avec <code className="font-mono text-gray-200">{'{season}'}</code> (ex. <code className="font-mono text-gray-200">Saison {'{season}'}</code>).</li>
+          </ul>
+
+          <div className="mt-4 p-4 rounded-lg bg-brand-surface border border-brand-border text-sm text-gray-200 space-y-3">
+            <p className="font-semibold text-white">Exemple de configuration (les 3 derniers champs sont optionnels, les valeurs ci-dessous correspondent aux valeurs par défaut)&nbsp;:</p>
+            <div>
+              <p className="text-gray-400">URL RPC Aria2</p>
+              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
+                http://192.168.1.10:6800/jsonrpc
+              </code>
+            </div>
+            <div>
+              <p className="text-gray-400">Secret RPC Aria2</p>
+              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
+                monSecretAria2
+              </code>
+            </div>
+            <div>
+              <p className="text-gray-400">Chemin de base des téléchargements</p>
+              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
+                /media
+              </code>
+            </div>
+            <div>
+              <p className="text-gray-400">Chemin de téléchargement pour films</p>
+              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
+                /media/films
+              </code>
+            </div>
+            <div>
+              <p className="text-gray-400">Chemin de téléchargement pour séries</p>
+              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
+                /media/series
+              </code>
+            </div>
+            <div>
+              <p className="text-gray-400">Chemin de téléchargement pour saison de série</p>
+              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
+                Saison {'{season}'}
+              </code>
+            </div>
+          </div>
+          <p className="text-gray-300 mt-4">
+            Cliquez sur <strong className="text-white">Mettre à jour la configuration Aria2</strong> pour enregistrer et vérifier la connexion.
+          </p>
         </section>
 
-        {/* Section 7 — Utilisation */}
+        {/* Section 6 — Utilisation */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <FiFolder className="h-5 w-5 text-lime-400" />
-            7. Utilisation au quotidien
+            6. Utilisation au quotidien
           </h2>
           <div className="space-y-3 text-gray-300 leading-relaxed">
             <p>

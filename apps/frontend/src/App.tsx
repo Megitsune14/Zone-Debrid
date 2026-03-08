@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { NotificationProvider, useNotification } from './contexts/NotificationContext'
 import { ActiveDownloadProvider } from './contexts/ActiveDownloadContext'
@@ -16,7 +16,14 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import TermsOfServicePage from './pages/TermsOfServicePage'
 import FAQPage from './pages/FAQPage'
 import Aria2HelpPage from './pages/Aria2HelpPage'
+import NotFoundPage from './pages/NotFoundPage'
 import AuthPage from './pages/AuthPage'
+import AdminLayout from './layouts/AdminLayout'
+import { AdminMasterProvider } from './contexts/AdminMasterContext'
+import AdminHomePage from './pages/admin/AdminHomePage'
+import AdminDownloadsPage from './pages/admin/AdminDownloadsPage'
+import AdminSearchesPage from './pages/admin/AdminSearchesPage'
+import AdminUsersPage from './pages/admin/AdminUsersPage'
 import { FiLoader } from 'react-icons/fi'
 
 /**
@@ -46,6 +53,28 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>
 }
 
+/** Route réservée aux admins (isAdmin). Redirige vers / si non admin. */
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center relative z-10">
+        <div className="text-center">
+          <FiLoader className="h-8 w-8 animate-spin text-brand-primary mx-auto mb-4" />
+          <p className="text-gray-400">Chargement...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user?.isAdmin) {
+    return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
+}
+
 /**
  * Main application component with routing and context providers
  * @returns {JSX.Element} Main app component
@@ -53,10 +82,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const AppContent = () => {
   const { isAuthenticated } = useAuth()
   const { state: notificationState, hideInvalidApiKeyModal } = useNotification()
+  const location = useLocation()
+  const isAdminArea = location.pathname.startsWith('/admin')
 
   return (
     <div className="min-h-screen bg-brand-bg text-gray-100 flex flex-col relative z-10">
-      <Header />
+      {!isAdminArea && <Header />}
       
       <main className="flex-1">
         <Routes>
@@ -118,12 +149,31 @@ const AppContent = () => {
               </div>
             </ProtectedRoute>
           } />
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminRoute>
+                <AdminMasterProvider>
+                  <AdminLayout />
+                </AdminMasterProvider>
+              </AdminRoute>
+            </ProtectedRoute>
+          }>
+            <Route index element={<AdminHomePage />} />
+            <Route path="downloads" element={<AdminDownloadsPage />} />
+            <Route path="searches" element={<AdminSearchesPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+          </Route>
+          <Route path="*" element={
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+              <NotFoundPage />
+            </div>
+          } />
         </Routes>
       </main>
       
-      <Footer />
+      {!isAdminArea && <Footer />}
 
-      {isAuthenticated && <ActiveDownloadsPanel />}
+      {isAuthenticated && !isAdminArea && <ActiveDownloadsPanel />}
 
       <InvalidApiKeyModal
         isOpen={notificationState.invalidApiKeyModal.isOpen}

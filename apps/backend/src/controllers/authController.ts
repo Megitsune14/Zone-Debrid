@@ -21,6 +21,7 @@ const buildUserResponse = (user: any) => ({
   id: user._id,
   username: user.username,
   allDebridApiKey: user.getDecryptedAllDebridApiKey(),
+  isAdmin: user.role === 'admin',
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
   aria2Enabled: user.aria2Enabled ?? false,

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FiDownload, FiFilm, FiTv, FiPlay, FiCalendar, FiGlobe, FiSearch, FiStar } from 'react-icons/fi'
 import type { SearchResult, SearchItem } from '../types'
 import DownloadModal from './DownloadModal.tsx'
+import { sortQualities, getQualityBar } from '../utils/quality'
 
 interface SearchResultsProps {
   results: SearchResult[]
@@ -84,7 +85,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
       return (
         <div className="space-y-2">
           {languages.map((language) => {
-            const qualities = Object.keys(details[language])
+            const qualities = sortQualities([...Object.keys(details[language])])
             return (
               <div key={language} className="flex items-center space-x-2 text-sm">
                 <FiGlobe className="h-4 w-4 text-brand-primary" />
@@ -95,7 +96,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
                       key={quality}
                       className="px-2 py-1 bg-brand-primary/20 text-brand-primary rounded text-xs font-medium"
                     >
-                      {quality}
+                      {quality} <span className="text-brand-primary/80">{getQualityBar(quality)}</span>
                     </span>
                   ))}
                 </div>
@@ -128,7 +129,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
                 </div>
                 
                 {languages.map((language) => {
-                  const qualities = Object.keys(seasonData.versions[language])
+                  const qualities = sortQualities([...Object.keys(seasonData.versions[language])])
                   return (
                     <div key={language} className="ml-6 flex items-center space-x-2 text-sm">
                       <FiGlobe className="h-4 w-4 text-brand-primary" />
@@ -144,6 +145,7 @@ const SearchResults = ({ results, isLoading, hasSearched }: SearchResultsProps) 
                             >
                               {quality}
                               {fileSize && <span className="ml-1 text-gray-400">({fileSize})</span>}
+                              <span className="ml-1 text-brand-primary/80">{getQualityBar(quality)}</span>
                             </span>
                           )
                         })}

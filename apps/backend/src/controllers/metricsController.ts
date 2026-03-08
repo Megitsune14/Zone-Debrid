@@ -6,7 +6,7 @@ import Logger from '@/base/Logger'
 import { AppError } from '@/middleware/errorHandler'
 
 /**
- * Set master password for Megitsune user
+ * Set master password for admin user
  * @param {Request} req - Express request object with authenticated user and masterPassword
  * @param {Response} res - Express response object
  * @returns {Promise<void>} JSON response with success status or error message
@@ -14,13 +14,13 @@ import { AppError } from '@/middleware/errorHandler'
 export const setMasterPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { masterPassword, currentMasterPassword } = req.body
-    const user = req.user
+    const user = req.user as any
 
-    // Vérifier que l'utilisateur est Megitsune
-    if (user.username !== 'megitsune') {
+    // Réservé aux utilisateurs avec le rôle admin
+    if (user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Accès refusé. Seul l\'utilisateur Megitsune peut définir un mot de passe maître.'
+        message: 'Accès refusé. Seuls les administrateurs peuvent définir un mot de passe maître.'
       })
     }
 
@@ -40,8 +40,8 @@ export const setMasterPassword = async (req: Request, res: Response, next: NextF
     }
 
     // Récupérer l'utilisateur complet pour la mise à jour
-    const megitsuneUser = await User.findById(user._id)
-    if (!megitsuneUser) {
+    const targetUser = await User.findById(user._id)
+    if (!targetUser) {
       return res.status(404).json({
         success: false,
         message: 'Utilisateur non trouvé'
@@ -49,7 +49,7 @@ export const setMasterPassword = async (req: Request, res: Response, next: NextF
     }
 
     // Vérifier si un mot de passe maître existe déjà
-    if (megitsuneUser.masterPassword) {
+    if (targetUser.masterPassword) {
       // Si un mot de passe maître existe, vérifier l'ancien
       if (!currentMasterPassword) {
         return res.status(400).json({
@@ -59,7 +59,7 @@ export const setMasterPassword = async (req: Request, res: Response, next: NextF
       }
 
       // Vérifier l'ancien mot de passe maître
-      const isCurrentMasterPasswordValid = await megitsuneUser.compareMasterPassword(currentMasterPassword)
+      const isCurrentMasterPasswordValid = await targetUser.compareMasterPassword(currentMasterPassword)
       if (!isCurrentMasterPasswordValid) {
         return res.status(400).json({
           success: false,
@@ -69,14 +69,14 @@ export const setMasterPassword = async (req: Request, res: Response, next: NextF
     }
 
     // Mettre à jour le mot de passe maître
-    megitsuneUser.masterPassword = masterPassword
-    await megitsuneUser.save()
+    targetUser.masterPassword = masterPassword
+    await targetUser.save()
 
-    Logger.success(`Mot de passe maître ${megitsuneUser.masterPassword ? 'modifié' : 'défini'} pour l'utilisateur: ${user.username}`)
+    Logger.success(`Mot de passe maître ${targetUser.masterPassword ? 'modifié' : 'défini'} pour l'utilisateur: ${user.username}`)
 
     res.json({
       success: true,
-      message: megitsuneUser.masterPassword ? 'Mot de passe maître modifié avec succès' : 'Mot de passe maître défini avec succès'
+      message: targetUser.masterPassword ? 'Mot de passe maître modifié avec succès' : 'Mot de passe maître défini avec succès'
     })
 
   } catch (error: unknown) {
@@ -94,13 +94,13 @@ export const setMasterPassword = async (req: Request, res: Response, next: NextF
 export const authenticateMasterPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { masterPassword } = req.body
-    const user = req.user
+    const user = req.user as any
 
-    // Vérifier que l'utilisateur est Megitsune
-    if (user.username !== 'megitsune') {
+    // Réservé aux utilisateurs avec le rôle admin
+    if (user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Accès refusé. Seul l\'utilisateur Megitsune peut accéder aux métriques.'
+        message: 'Accès refusé. Seuls les administrateurs peuvent accéder aux métriques.'
       })
     }
 
@@ -113,8 +113,8 @@ export const authenticateMasterPassword = async (req: Request, res: Response, ne
     }
 
     // Récupérer l'utilisateur complet pour la vérification
-    const megitsuneUser = await User.findById(user._id)
-    if (!megitsuneUser) {
+    const targetUser = await User.findById(user._id)
+    if (!targetUser) {
       return res.status(404).json({
         success: false,
         message: 'Utilisateur non trouvé'
@@ -122,7 +122,7 @@ export const authenticateMasterPassword = async (req: Request, res: Response, ne
     }
 
     // Vérifier si le mot de passe maître est défini
-    if (!megitsuneUser.masterPassword) {
+    if (!targetUser.masterPassword) {
       return res.status(400).json({
         success: false,
         message: 'Aucun mot de passe maître défini. Veuillez d\'abord définir un mot de passe maître.'
@@ -130,7 +130,7 @@ export const authenticateMasterPassword = async (req: Request, res: Response, ne
     }
 
     // Vérifier le mot de passe maître
-    const isMasterPasswordValid = await megitsuneUser.compareMasterPassword(masterPassword)
+    const isMasterPasswordValid = await targetUser.compareMasterPassword(masterPassword)
     if (!isMasterPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -159,13 +159,13 @@ export const authenticateMasterPassword = async (req: Request, res: Response, ne
  */
 export const getMetrics = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = req.user
+    const user = req.user as any
 
-    // Vérifier que l'utilisateur est Megitsune
-    if (user.username !== 'megitsune') {
+    // Vérifier que l'utilisateur a le rôle admin
+    if (user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Accès refusé. Seul l\'utilisateur Megitsune peut accéder aux métriques.'
+        message: 'Accès refusé. Seul un administrateur peut accéder aux métriques.'
       })
     }
 
@@ -303,12 +303,13 @@ export const getMetrics = async (req: Request, res: Response, next: NextFunction
  */
 export const getDownloadsList = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = req.user
+    const user = req.user as any
 
-    if (user?.username !== 'megitsune') {
+    // Vérifier que l'utilisateur a le rôle admin
+    if (user?.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Accès refusé. Seul l\'utilisateur Megitsune peut accéder aux métriques.'
+        message: 'Accès refusé. Seul un administrateur peut accéder aux métriques.'
       })
     }
 

@@ -84,17 +84,17 @@ const MetricsPage = () => {
     const [downloadsSearch, setDownloadsSearch] = useState('')
     const [downloadsSearchInput, setDownloadsSearchInput] = useState('')
 
-    // Vérifier si l'utilisateur est Megitsune
-    const isMegitsune = user?.username === 'megitsune'
+    // Vérifier si l'utilisateur est admin
+    const isAdmin = user?.isAdmin === true
 
     useEffect(() => {
-        if (isMegitsune && isAuthenticated) {
+        if (isAdmin && isAuthenticated) {
             fetchMetrics()
         }
-    }, [isMegitsune, isAuthenticated])
+    }, [isAdmin, isAuthenticated])
 
   const fetchDownloadsList = useCallback(async () => {
-    if (!isMegitsune || !isAuthenticated) return
+    if (!isAdmin || !isAuthenticated) return
     setDownloadsLoading(true)
     try {
       const res = await metricsService.getDownloadsList({
@@ -114,13 +114,13 @@ const MetricsPage = () => {
     } finally {
       setDownloadsLoading(false)
     }
-  }, [isMegitsune, isAuthenticated, downloadsPage, downloadsLimit, downloadsSortBy, downloadsSortOrder, downloadsFilterStatus, downloadsFilterType, downloadsSearch])
+  }, [isAdmin, isAuthenticated, downloadsPage, downloadsLimit, downloadsSortBy, downloadsSortOrder, downloadsFilterStatus, downloadsFilterType, downloadsSearch])
 
   useEffect(() => {
-    if (isMegitsune && isAuthenticated) {
+    if (isAdmin && isAuthenticated) {
       fetchDownloadsList()
     }
-  }, [isMegitsune, isAuthenticated, fetchDownloadsList])
+  }, [isAdmin, isAuthenticated, fetchDownloadsList])
 
   const fetchMetrics = async () => {
     setLoading(true)
@@ -225,13 +225,13 @@ const MetricsPage = () => {
         setIsModifyingPassword(false)
     }
 
-    if (!isMegitsune) {
+    if (!isAdmin) {
         return (
             <div className="max-w-4xl mx-auto">
                 <div className="text-center py-12">
                     <FiLock className="h-16 w-16 text-red-400 mx-auto mb-4" />
                     <h1 className="text-2xl font-bold text-white mb-2">Accès Refusé</h1>
-                    <p className="text-gray-400">Seul l'utilisateur Megitsune peut accéder à cette page.</p>
+                    <p className="text-gray-400">Seuls les administrateurs peuvent accéder à cette page.</p>
                 </div>
             </div>
         )
@@ -516,10 +516,10 @@ const MetricsPage = () => {
           {/* Graphiques */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Graphique en secteurs - Téléchargements par type */}
-            <div className="card">
+            <div className="card w-full min-w-0">
               <h3 className="text-lg font-semibold text-white mb-4">Téléchargements par type</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="w-full" style={{ height: 256 }}>
+                <ResponsiveContainer width="100%" height={256}>
                   <PieChart>
                     <Pie
                       data={downloadsByTypeData}
@@ -549,10 +549,10 @@ const MetricsPage = () => {
             </div>
 
             {/* Graphique en barres - Utilisateurs actifs */}
-            <div className="card">
+            <div className="card w-full min-w-0">
               <h3 className="text-lg font-semibold text-white mb-4">Top 5 Utilisateurs Actifs</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="w-full" style={{ height: 256 }}>
+                <ResponsiveContainer width="100%" height={256}>
                   <BarChart data={topUsersData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis 
@@ -581,10 +581,10 @@ const MetricsPage = () => {
 
           {/* Graphique linéaire - Téléchargements par jour */}
           {downloadsByDayData.length > 0 && (
-            <div className="card">
+            <div className="card w-full min-w-0">
               <h3 className="text-lg font-semibold text-white mb-4">Téléchargements des 7 derniers jours</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="w-full" style={{ height: 256 }}>
+                <ResponsiveContainer width="100%" height={256}>
                   <LineChart data={downloadsByDayData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis 

@@ -7,6 +7,7 @@ import downloadHistoryService from '../services/downloadHistoryService'
 import { useActiveDownloads } from '../contexts/ActiveDownloadContext'
 import { useAuth } from '../contexts/AuthContext'
 import { API_CONFIG, log } from '../config/api'
+import { sortQualities, getQualityBar } from '../utils/quality'
 
 interface DownloadModalProps {
   result: SearchResult
@@ -763,6 +764,7 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
     const availableQualities = result.type === 'films' ? 
       (selectedLanguage ? Object.keys((item.details as any)[selectedLanguage] || {}) : qualities) :
       (selectedSeason && selectedLanguage ? Object.keys((item.details as any)[selectedSeason]?.versions[selectedLanguage] || {}) : qualities)
+    const sortedQualities = sortQualities([...availableQualities])
 
     return (
       <div className="space-y-4">
@@ -771,13 +773,13 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
           <span>Choisissez la qualité</span>
         </div>
         
-        {availableQualities.length === 0 ? (
+        {sortedQualities.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-400">Aucune qualité disponible pour cette combinaison saison/langue</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {availableQualities.map((quality) => {
+            {sortedQualities.map((quality) => {
               const fileSize = getFileSize(selectedLanguage, quality, selectedSeason)
               return (
                 <button
@@ -790,10 +792,11 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
                   }`}
                 >
                   <div className="text-center">
-                    <div className="font-medium">{quality}</div>
-                    {fileSize && (
-                      <div className="text-sm opacity-75">{fileSize}</div>
-                    )}
+                    <div className="font-medium">
+                      {quality}
+                      {fileSize && <span className="font-normal text-gray-400"> ({fileSize})</span>}
+                      <span className="ml-1 text-yellow-400/80 text-sm">{getQualityBar(quality)}</span>
+                    </div>
                   </div>
                 </button>
               )

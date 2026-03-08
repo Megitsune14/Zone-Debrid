@@ -14,7 +14,6 @@ const Header = () => {
   const isSearchPage = location.pathname === '/search'
   const isDownloadsPage = location.pathname === '/downloads'
   const isSettingsPage = location.pathname === '/settings'
-  const isMetricsPage = location.pathname === '/metrics'
 
   // Fonction pour capitaliser la première lettre
   const capitalizeFirstLetter = (str: string) => {
@@ -33,11 +32,6 @@ const Header = () => {
 
   const handleSettings = () => {
     navigate('/settings')
-    setIsDropdownOpen(false)
-  }
-
-  const handleMetrics = () => {
-    navigate('/metrics')
     setIsDropdownOpen(false)
   }
 
@@ -139,17 +133,17 @@ const Header = () => {
                           <FiSettings className="h-4 w-4" />
                           <span>Paramètres</span>
                         </button>
-                        {user?.username === 'megitsune' && (
+                        {user?.isAdmin && (
                           <button
-                            onClick={handleMetrics}
+                            onClick={() => { navigate('/admin'); setIsDropdownOpen(false) }}
                             className={`flex items-center space-x-2 sm:space-x-3 w-full px-3 sm:px-4 py-2 sm:py-3 text-left transition-colors duration-200 text-sm sm:text-base ${
-                              isMetricsPage 
-                                ? 'bg-gradient-brand text-white' 
+                              location.pathname.startsWith('/admin')
+                                ? 'bg-gradient-brand text-white'
                                 : 'text-gray-300 hover:bg-brand-surface-hover hover:text-white'
                             }`}
                           >
                             <FiBarChart className="h-4 w-4" />
-                            <span>Métriques</span>
+                            <span>Dashboard</span>
                           </button>
                         )}
                         <div className="border-t border-brand-border my-1"></div>

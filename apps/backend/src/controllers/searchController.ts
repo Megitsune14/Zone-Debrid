@@ -3,6 +3,7 @@ import scrapingService from '@/services/ScrapingService';
 import Logger from '@/base/Logger';
 import ZTUrl from '@/models/ZTUrl';
 import allDebridService from '@/services/allDebridService';
+import SearchHistory from '@/models/SearchHistory';
 import { AppError } from '@/middleware/errorHandler';
 import * as cheerio from 'cheerio';
 
@@ -203,6 +204,14 @@ const searchAll = async (req: Request, res: Response, next: NextFunction) => {
     }
     
     Logger.success(`Search completed successfully for: "${query}"${contentType ? ` (type: ${contentType})` : ''}${filterYear ? ` (year: ${filterYear})` : ''}`);
+    
+    // Enregistrer la recherche en base pour l'historique (fire-and-forget)
+    SearchHistory.create({
+      userId: user._id,
+      query: query.trim(),
+      ...(contentType && { type: contentType }),
+      ...(filterYear != null && { year: filterYear })
+    }).catch((err) => Logger.error(`SearchHistory save failed: ${err instanceof Error ? err.message : err}`));
     
     const response: SearchResponse = {
       success: true,

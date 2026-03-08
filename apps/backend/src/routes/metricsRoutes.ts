@@ -8,7 +8,7 @@ const router = Router()
 router.use(auth)
 
 /**
- * Définir le mot de passe maître pour l'utilisateur Megitsune
+ * Définir le mot de passe maître (réservé aux admins)
  */
 router.post('/set-master-password', setMasterPassword)
 

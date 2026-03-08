@@ -95,10 +95,16 @@ export function ActiveDownloadProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const interval = setInterval(fetchSessions, POLL_INTERVAL_MS)
     fetchSessions()
-    return () => clearInterval(interval)
   }, [fetchSessions])
+
+  const hasActiveDownloads = downloads.some((d) => d.status === 'downloading')
+
+  useEffect(() => {
+    if (!hasActiveDownloads) return
+    const interval = setInterval(fetchSessions, POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [hasActiveDownloads, fetchSessions])
 
   const startDownload = useCallback((url: string, filename: string, options?: StartDownloadOptions): string => {
     const { historyId, fileSize } = options ?? {}
@@ -111,10 +117,11 @@ export function ActiveDownloadProvider({ children }: { children: ReactNode }) {
         historyId
       )
       clientDownloadService.startNativeDownload(downloadUrl)
+      await fetchSessions()
     }
     run().catch(() => {})
     return 'session'
-  }, [])
+  }, [fetchSessions])
 
   const startZipDownload = useCallback((
     files: ZipFileItem[],
@@ -130,10 +137,11 @@ export function ActiveDownloadProvider({ children }: { children: ReactNode }) {
         historyId
       )
       clientDownloadService.startNativeDownload(downloadUrl)
+      await fetchSessions()
     }
     run().catch(() => {})
     return 'session'
-  }, [])
+  }, [fetchSessions])
 
   const cancelDownload = useCallback(async (id: string) => {
     try {

@@ -19,6 +19,7 @@ import downloadRoutes from "@/routes/downloadRoutes";
 import downloadHistoryRoutes from "@/routes/downloadHistoryRoutes";
 import metricsRoutes from "@/routes/metricsRoutes";
 import clientErrorRoutes from "@/routes/clientErrorRoutes";
+import adminRoutes from "@/routes/adminRoutes";
 import { notFoundHandler, errorHandler } from "@/middleware/errorHandler";
 import { startAria2Polling } from "@/services/aria2PollingService";
 
@@ -61,7 +62,7 @@ try {
 	app.use(express.json());
 	app.use(cors({
 		origin: "*",
-		methods: ["GET", "POST", "PUT", "DELETE"],
+		methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
 		allowedHeaders: ["Content-Type", "Authorization"]
 	}));
 
@@ -78,6 +79,7 @@ try {
 	app.use("/api/download-history", downloadHistoryRoutes);
 	app.use("/api/metrics", metricsRoutes);
 	app.use("/api/client-errors", clientErrorRoutes);
+	app.use("/api/admin", adminRoutes);
 
 	// 404 puis gestionnaire d'erreurs global (doivent être en dernier)
 	app.use(notFoundHandler);
