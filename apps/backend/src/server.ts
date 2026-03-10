@@ -18,6 +18,7 @@ import authRoutes from "@/routes/authRoutes";
 import downloadRoutes from "@/routes/downloadRoutes";
 import downloadHistoryRoutes from "@/routes/downloadHistoryRoutes";
 import metricsRoutes from "@/routes/metricsRoutes";
+import maintenanceRoutes from "@/routes/maintenanceRoutes";
 import clientErrorRoutes from "@/routes/clientErrorRoutes";
 import adminRoutes from "@/routes/adminRoutes";
 import { notFoundHandler, errorHandler } from "@/middleware/errorHandler";
@@ -73,6 +74,7 @@ try {
 
 	// Routes
 	app.use("/api/health", healthRoutes);
+	app.use("/api/maintenance", maintenanceRoutes);
 	app.use("/api/auth", authRoutes);
 	app.use("/api", searchRoutes);
 	app.use("/api/downloads", downloadRoutes);

@@ -96,8 +96,24 @@ export interface DashboardSummary {
   downloadsLast24h: number
 }
 
+export interface MaintenanceConfig {
+  maintenanceEnabled: boolean
+  maintenanceMessage: string
+}
+
 const getDashboardSummary = async (): Promise<{ success: boolean; data: DashboardSummary }> => {
   return request(`${API_CONFIG.API_URL}/admin/dashboard-summary`)
+}
+
+const getMaintenanceConfig = async (): Promise<{ success: boolean; data: MaintenanceConfig }> => {
+  return request(`${API_CONFIG.API_URL}/admin/maintenance`)
+}
+
+const updateMaintenanceConfig = async (body: MaintenanceConfig): Promise<{ success: boolean; data: MaintenanceConfig }> => {
+  return request(`${API_CONFIG.API_URL}/admin/maintenance`, {
+    method: 'PUT',
+    body
+  })
 }
 
 const createUser = async (body: CreateUserBody): Promise<{ success: boolean; message: string; data: { id: string; username: string; createdAt: string } }> => {
@@ -126,7 +142,9 @@ const adminService = {
   listSearches,
   createUser,
   deleteUser,
-  updateUserRole
+  updateUserRole,
+  getMaintenanceConfig,
+  updateMaintenanceConfig
 }
 
 export default adminService

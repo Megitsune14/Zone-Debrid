@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { FiHome, FiDownload, FiSearch, FiUsers, FiLogOut, FiArrowLeft, FiEye, FiEyeOff, FiBarChart } from 'react-icons/fi'
+import { FiHome, FiDownload, FiSearch, FiUsers, FiLogOut, FiArrowLeft, FiEye, FiEyeOff, FiBarChart, FiAlertTriangle } from 'react-icons/fi'
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useAdminMaster } from '../contexts/AdminMasterContext'
@@ -9,7 +9,8 @@ const navItems = [
   { to: '/admin', end: true, icon: FiHome, label: 'Accueil' },
   { to: '/admin/downloads', end: false, icon: FiDownload, label: 'Téléchargements' },
   { to: '/admin/searches', end: true, icon: FiSearch, label: 'Recherches' },
-  { to: '/admin/users', end: true, icon: FiUsers, label: 'Utilisateurs' }
+  { to: '/admin/users', end: true, icon: FiUsers, label: 'Utilisateurs' },
+  { to: '/admin/maintenance', end: true, icon: FiAlertTriangle, label: 'Maintenance' }
 ]
 
 export default function AdminLayout () {

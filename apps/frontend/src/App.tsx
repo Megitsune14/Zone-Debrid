@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { NotificationProvider, useNotification } from './contexts/NotificationContext'
 import { ActiveDownloadProvider } from './contexts/ActiveDownloadContext'
@@ -24,7 +25,10 @@ import AdminHomePage from './pages/admin/AdminHomePage'
 import AdminDownloadsPage from './pages/admin/AdminDownloadsPage'
 import AdminSearchesPage from './pages/admin/AdminSearchesPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
+import AdminMaintenancePage from './pages/AdminMaintenancePage'
 import { FiLoader } from 'react-icons/fi'
+import MaintenancePage from './pages/MaintenancePage'
+import { getPublicMaintenanceStatus } from './services/maintenanceService'
 
 /**
  * Component to protect routes that require authentication
@@ -80,16 +84,38 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
  * @returns {JSX.Element} Main app component
  */
 const AppContent = () => {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const { state: notificationState, hideInvalidApiKeyModal } = useNotification()
   const location = useLocation()
   const isAdminArea = location.pathname.startsWith('/admin')
 
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false)
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchMaintenance = async () => {
+      try {
+        const status = await getPublicMaintenanceStatus()
+        setMaintenanceEnabled(status.maintenanceEnabled)
+        setMaintenanceMessage(status.maintenanceMessage)
+      } catch {
+        setMaintenanceEnabled(false)
+        setMaintenanceMessage(null)
+      }
+    }
+    void fetchMaintenance()
+  }, [])
+
   return (
     <div className="min-h-screen bg-brand-bg text-gray-100 flex flex-col relative z-10">
       {!isAdminArea && <Header />}
-      
+
       <main className="flex-1">
+        {maintenanceEnabled && !isAdminArea && !user?.isAdmin ? (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <MaintenancePage message={maintenanceMessage ?? undefined} />
+          </div>
+        ) : (
         <Routes>
           <Route path="/auth" element={
             <AuthRoute />
@@ -162,6 +188,7 @@ const AppContent = () => {
             <Route path="downloads" element={<AdminDownloadsPage />} />
             <Route path="searches" element={<AdminSearchesPage />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route path="maintenance" element={<AdminMaintenancePage />} />
           </Route>
           <Route path="*" element={
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
@@ -169,6 +196,7 @@ const AppContent = () => {
             </div>
           } />
         </Routes>
+        )}
       </main>
       
       {!isAdminArea && <Footer />}
