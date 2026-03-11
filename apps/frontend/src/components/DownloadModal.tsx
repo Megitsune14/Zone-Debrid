@@ -538,7 +538,13 @@ const DownloadModal = ({ result, item, isOpen, onClose }: DownloadModalProps) =>
         <p className="text-gray-400 mb-4">
           {currentProgress === 100 
             ? ''
-            : 'Nous vérifions les liens et testons leur disponibilité avec AllDebrid'
+            : (
+              <>
+                Nous vérifions les liens et testons leur disponibilité avec AllDebrid.
+                <br />
+                ⚠️Suite à un problème récent de Alldebrid, le débridage des liens peuvent être un petit peu plus long..
+              </>
+            )
           }
         </p>
       </div>
