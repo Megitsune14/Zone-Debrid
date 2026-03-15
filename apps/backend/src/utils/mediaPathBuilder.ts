@@ -11,6 +11,8 @@ interface MediaPathInput {
   pathFilms?: string
   /** Chemin de téléchargement pour les séries (ex. /media/series). Prioritaire sur basePath. */
   pathSeries?: string
+  /** Chemin de téléchargement pour les animes (ex. /media/animes). Prioritaire sur basePath. */
+  pathAnimes?: string
   /** Modèle du dossier de saison : {season} est remplacé par le numéro (ex. Saison {season} → Saison 01). */
   pathSeriesSeason?: string
 }
@@ -100,9 +102,10 @@ export function buildMediaPath(input: MediaPathInput): MediaPathResult {
     : `Saison ${paddedSeason}`
   const sCode = `S${paddedSeason}E${String(episodeNumber).padStart(2, '0')}`
 
-  const seriesBase = input.pathSeries?.trim()
-    ? normalizeBasePath(input.pathSeries)
-    : `${base}/series`
+  const isMangas = input.type === 'mangas'
+  const seriesBase = isMangas
+    ? (input.pathAnimes?.trim() ? normalizeBasePath(input.pathAnimes) : `${base}/animes`)
+    : (input.pathSeries?.trim() ? normalizeBasePath(input.pathSeries) : `${base}/series`)
   const dir = `${seriesBase}/${safeTitle}${yearSuffix}/${seasonLabel}`
   const out = `${safeTitle} - ${sCode}.mkv`
 

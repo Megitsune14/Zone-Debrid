@@ -11,6 +11,7 @@ export interface User {
   aria2DownloadBasePath?: string
   aria2PathFilms?: string
   aria2PathSeries?: string
+  aria2PathAnimes?: string
   aria2PathSeriesSeason?: string
 }
 
@@ -55,6 +56,7 @@ export interface UpdateProfileRequest {
   aria2DownloadBasePath?: string
   aria2PathFilms?: string
   aria2PathSeries?: string
+  aria2PathAnimes?: string
   aria2PathSeriesSeason?: string
 }
 

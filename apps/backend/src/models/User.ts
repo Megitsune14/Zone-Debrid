@@ -17,6 +17,8 @@ export interface IUser extends Document {
   aria2PathFilms?: string
   /** Chemin de téléchargement pour les séries (ex. /media/series) */
   aria2PathSeries?: string
+  /** Chemin de téléchargement pour les animes (ex. /media/animes) */
+  aria2PathAnimes?: string
   /** Nom du dossier de saison, {season} remplacé par le numéro (ex. Saison {season} → Saison 01) */
   aria2PathSeriesSeason?: string
   createdAt: Date
@@ -80,6 +82,10 @@ const userSchema = new Schema<IUser>({
     trim: true
   },
   aria2PathSeries: {
+    type: String,
+    trim: true
+  },
+  aria2PathAnimes: {
     type: String,
     trim: true
   },

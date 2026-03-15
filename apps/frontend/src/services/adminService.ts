@@ -35,6 +35,7 @@ export interface CreateUserBody {
   aria2DownloadBasePath?: string
   aria2PathFilms?: string
   aria2PathSeries?: string
+  aria2PathAnimes?: string
   aria2PathSeriesSeason?: string
 }
 

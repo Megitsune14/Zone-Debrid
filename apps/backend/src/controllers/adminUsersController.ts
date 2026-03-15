@@ -87,6 +87,7 @@ export const createUser = async (req: Request, res: Response, next: NextFunction
       aria2DownloadBasePath,
       aria2PathFilms,
       aria2PathSeries,
+      aria2PathAnimes,
       aria2PathSeriesSeason
     } = req.body
 
@@ -143,6 +144,7 @@ export const createUser = async (req: Request, res: Response, next: NextFunction
       aria2DownloadBasePath: aria2DownloadBasePath || undefined,
       aria2PathFilms: aria2PathFilms || undefined,
       aria2PathSeries: aria2PathSeries || undefined,
+      aria2PathAnimes: aria2PathAnimes || undefined,
       aria2PathSeriesSeason: aria2PathSeriesSeason || undefined
     })
 

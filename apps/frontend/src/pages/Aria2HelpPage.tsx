@@ -225,11 +225,136 @@ sudo chmod 777 /media`}
           </div>
         </section>
 
-        {/* Section 4 — Vérifier qu'Aria2 fonctionne */}
+        {/* Section 4 — Fichier de configuration aria2.conf */}
+        <section className="card">
+          <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
+            <FiSettings className="h-5 w-5 text-sky-400" />
+            4. Configuration à mettre dans aria2.conf
+          </h2>
+          <p className="text-gray-300 mb-3">
+            Voici une configuration type à placer dans votre fichier de configuration Aria2 (par ex. <code className="font-mono text-gray-200">/config/aria2.conf</code> dans le conteneur Docker ou <code className="font-mono text-gray-200">/etc/aria2/aria2.conf</code> en installation native).
+          </p>
+          <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-gray-200 mb-4">
+            <p className="font-semibold text-white">
+              Important : remplacez <code className="font-mono bg-black/40 px-1.5 py-0.5 rounded">TON_SECRET</code> par le secret RPC de votre choix (même valeur que celle que vous renseignez dans Zone-Debrid et, en Docker, que la variable <code className="font-mono text-gray-200">RPC_SECRET</code>).
+            </p>
+          </div>
+          <pre className="bg-black/60 text-gray-100 text-xs rounded-lg p-4 overflow-x-auto whitespace-pre-wrap font-mono">
+{`## Basic ##
+
+# Download directory
+dir=/downloads
+
+# Disk cache (good for NAS)
+disk-cache=64M
+
+# File allocation
+file-allocation=falloc
+no-file-allocation-limit=64M
+
+# Resume downloads
+continue=true
+always-resume=false
+max-resume-failure-tries=0
+
+# Keep server file timestamps
+remote-time=true
+
+
+## Session ##
+
+input-file=/config/aria2.session
+save-session=/config/aria2.session
+
+# Save session frequently
+save-session-interval=1
+
+# Save progress to .aria2 files
+auto-save-interval=20
+
+force-save=false
+
+
+## Connection ##
+
+# Retry settings
+max-file-not-found=10
+max-tries=0
+retry-wait=10
+
+# Timeouts
+connect-timeout=10
+timeout=10
+
+# ONLY ONE DOWNLOAD AT A TIME
+max-concurrent-downloads=1
+
+# Connections per download
+split=8
+max-connection-per-server=8
+min-split-size=10M
+piece-length=1M
+
+allow-piece-length-change=true
+
+# Speed limits (0 = unlimited)
+lowest-speed-limit=0
+max-overall-download-limit=0
+max-download-limit=0
+
+disable-ipv6=true
+http-accept-gzip=true
+reuse-uri=false
+no-netrc=true
+
+allow-overwrite=false
+auto-file-renaming=true
+
+content-disposition-default-utf8=true
+
+
+## RPC ##
+
+enable-rpc=true
+rpc-allow-origin-all=true
+rpc-listen-all=true
+rpc-listen-port=6800
+
+rpc-secret=TON_SECRET
+
+rpc-max-request-size=50M
+
+
+## Hooks ##
+
+on-download-stop=/config/script/delete.sh
+on-download-complete=/config/script/clean.sh
+
+
+## Advanced ##
+
+console-log-level=notice
+quiet=false
+
+summary-interval=0
+show-console-readout=false
+
+
+## User agent ##
+
+user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64)`}
+          </pre>
+
+          <p className="text-sm text-gray-400 mt-2">
+            Adaptez <code className="font-mono text-gray-200">dir</code>, <code className="font-mono text-gray-200">input-file</code>, <code className="font-mono text-gray-200">save-session</code> et les chemins des hooks selon votre installation (Docker vs native).
+          </p>
+        </section>
+
+        {/* Section 5 — Vérifier qu'Aria2 fonctionne */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <FiServer className="h-5 w-5 text-sky-400" />
-            4. Vérifier que Aria2 fonctionne
+            5. Vérifier que Aria2 fonctionne
           </h2>
           <p className="text-gray-300 mb-3">
             Depuis votre machine ou un terminal sur le même réseau&nbsp;:
@@ -242,11 +367,11 @@ sudo chmod 777 /media`}
           </p>
         </section>
 
-        {/* Section 5 — Informations à renseigner dans Zone-Debrid */}
+        {/* Section 6 — Informations à renseigner dans Zone-Debrid */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <FiSettings className="h-5 w-5 text-purple-400" />
-            5. Informations à renseigner dans Zone-Debrid
+            6. Informations à renseigner dans Zone-Debrid
           </h2>
           <p className="text-gray-300 mb-3">
             Pour activer la fonctionnalité <strong className="text-white">Télécharger vers NAS</strong>, ouvrez <strong className="text-white">Paramètres</strong>, activez la section Aria2, puis renseignez&nbsp;:
@@ -257,6 +382,7 @@ sudo chmod 777 /media`}
             <li><strong className="text-white">Chemin de base des téléchargements</strong> — point de départ utilisé pour tous les chemins (ex. <code className="font-mono text-gray-200">/media</code>). Obligatoire.</li>
             <li><strong className="text-white">Chemin de téléchargement pour films</strong> — optionnel. Si vide, Zone-Debrid utilise <code className="font-mono text-gray-200">&#123;chemin de base&#125;/films</code>. Sous-dossiers titre (année) créés automatiquement.</li>
             <li><strong className="text-white">Chemin de téléchargement pour séries</strong> — optionnel. Si vide, Zone-Debrid utilise <code className="font-mono text-gray-200">&#123;chemin de base&#125;/series</code>. Sous-dossiers série puis saison créés automatiquement.</li>
+            <li><strong className="text-white">Chemin de téléchargement pour animes</strong> — optionnel. Si vide, Zone-Debrid utilise <code className="font-mono text-gray-200">&#123;chemin de base&#125;/animes</code>. Sous-dossiers anime puis saison créés automatiquement.</li>
             <li><strong className="text-white">Chemin de téléchargement pour saison de série</strong> — optionnel. Si vide, Zone-Debrid utilise <code className="font-mono text-gray-200">Saison 01</code>, <code className="font-mono text-gray-200">Saison 02</code>, etc. Vous pouvez personnaliser avec <code className="font-mono text-gray-200">{'{season}'}</code> (ex. <code className="font-mono text-gray-200">Saison {'{season}'}</code>).</li>
           </ul>
 
@@ -293,6 +419,12 @@ sudo chmod 777 /media`}
               </code>
             </div>
             <div>
+              <p className="text-gray-400">Chemin de téléchargement pour animes</p>
+              <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
+                /media/animes
+              </code>
+            </div>
+            <div>
               <p className="text-gray-400">Chemin de téléchargement pour saison de série</p>
               <code className="block bg-black/40 px-3 py-2 rounded text-sm text-gray-100">
                 Saison {'{season}'}
@@ -304,11 +436,11 @@ sudo chmod 777 /media`}
           </p>
         </section>
 
-        {/* Section 6 — Actualisation Plex / Jellyfin */}
+        {/* Section 7 — Actualisation Plex / Jellyfin */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <FiRefreshCw className="h-5 w-5 text-cyan-400" />
-            6. Actualiser la librairie Plex ou Jellyfin
+            7. Actualiser la librairie Plex ou Jellyfin
           </h2>
           <div className="space-y-3 text-gray-300 leading-relaxed">
             <p>
@@ -347,11 +479,11 @@ echo "Refresh Plex lancé"`}
           </div>
         </section>
 
-        {/* Section 7 — Utilisation */}
+        {/* Section 8 — Utilisation */}
         <section className="card">
           <h2 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <FiFolder className="h-5 w-5 text-lime-400" />
-            7. Utilisation au quotidien
+            8. Utilisation au quotidien
           </h2>
           <div className="space-y-3 text-gray-300 leading-relaxed">
             <p>

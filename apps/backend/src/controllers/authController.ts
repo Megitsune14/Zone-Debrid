@@ -14,6 +14,7 @@ interface Aria2ConfigInput {
   aria2DownloadBasePath?: string
   aria2PathFilms?: string
   aria2PathSeries?: string
+  aria2PathAnimes?: string
   aria2PathSeriesSeason?: string
 }
 
@@ -30,6 +31,7 @@ const buildUserResponse = (user: any) => ({
   aria2DownloadBasePath: user.aria2DownloadBasePath ?? undefined,
   aria2PathFilms: user.aria2PathFilms ?? undefined,
   aria2PathSeries: user.aria2PathSeries ?? undefined,
+  aria2PathAnimes: user.aria2PathAnimes ?? undefined,
   aria2PathSeriesSeason: user.aria2PathSeriesSeason ?? undefined
 })
 
@@ -64,6 +66,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       aria2DownloadBasePath,
       aria2PathFilms,
       aria2PathSeries,
+      aria2PathAnimes,
       aria2PathSeriesSeason
     } = req.body as {
       username?: string
@@ -131,6 +134,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       aria2DownloadBasePath: aria2DownloadBasePath || undefined,
       aria2PathFilms: aria2PathFilms || undefined,
       aria2PathSeries: aria2PathSeries || undefined,
+      aria2PathAnimes: aria2PathAnimes || undefined,
       aria2PathSeriesSeason: aria2PathSeriesSeason || undefined
     })
 
@@ -263,6 +267,7 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       aria2DownloadBasePath,
       aria2PathFilms,
       aria2PathSeries,
+      aria2PathAnimes,
       aria2PathSeriesSeason
     } = req.body as {
       allDebridApiKey?: string
@@ -292,6 +297,7 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
         user.aria2DownloadBasePath = undefined
         user.aria2PathFilms = undefined
         user.aria2PathSeries = undefined
+        user.aria2PathAnimes = undefined
         user.aria2PathSeriesSeason = undefined
       }
     }
@@ -307,6 +313,9 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       }
       if (typeof aria2PathSeries === 'string') {
         user.aria2PathSeries = aria2PathSeries.trim() || undefined
+      }
+      if (typeof aria2PathAnimes === 'string') {
+        user.aria2PathAnimes = aria2PathAnimes.trim() || undefined
       }
       if (typeof aria2PathSeriesSeason === 'string') {
         user.aria2PathSeriesSeason = aria2PathSeriesSeason.trim() || undefined

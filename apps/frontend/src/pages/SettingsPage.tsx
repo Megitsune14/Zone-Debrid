@@ -40,6 +40,7 @@ const SettingsPage = () => {
     aria2DownloadBasePath: user?.aria2DownloadBasePath || '',
     aria2PathFilms: user?.aria2PathFilms || '',
     aria2PathSeries: user?.aria2PathSeries || '',
+    aria2PathAnimes: user?.aria2PathAnimes || '',
     aria2PathSeriesSeason: user?.aria2PathSeriesSeason || ''
   })
   const [isUpdatingAria2, setIsUpdatingAria2] = useState(false)
@@ -128,9 +129,10 @@ const SettingsPage = () => {
       aria2DownloadBasePath: user.aria2DownloadBasePath || '',
       aria2PathFilms: user.aria2PathFilms || '',
       aria2PathSeries: user.aria2PathSeries || '',
+      aria2PathAnimes: user.aria2PathAnimes || '',
       aria2PathSeriesSeason: user.aria2PathSeriesSeason || ''
     }))
-  }, [user?.id, user?.aria2Enabled, user?.aria2RpcUrl, user?.aria2RpcSecret, user?.aria2DownloadBasePath, user?.aria2PathFilms, user?.aria2PathSeries, user?.aria2PathSeriesSeason])
+  }, [user?.id, user?.aria2Enabled, user?.aria2RpcUrl, user?.aria2RpcSecret, user?.aria2DownloadBasePath, user?.aria2PathFilms, user?.aria2PathSeries, user?.aria2PathAnimes, user?.aria2PathSeriesSeason])
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -220,8 +222,9 @@ const SettingsPage = () => {
       const hasBase = Boolean(aria2Form.aria2DownloadBasePath?.trim())
       const hasFilms = Boolean(aria2Form.aria2PathFilms?.trim())
       const hasSeries = Boolean(aria2Form.aria2PathSeries?.trim())
-      if (!hasBase && !hasFilms && !hasSeries) {
-        setAria2Error('Configurez au moins un chemin : chemin de base ou chemins films/séries')
+      const hasAnimes = Boolean(aria2Form.aria2PathAnimes?.trim())
+      if (!hasBase && !hasFilms && !hasSeries && !hasAnimes) {
+        setAria2Error('Configurez au moins un chemin : chemin de base ou chemins films/séries/animes')
         return
       }
     }
@@ -241,6 +244,7 @@ const SettingsPage = () => {
         aria2DownloadBasePath: aria2Form.aria2Enabled ? (aria2Form.aria2DownloadBasePath.trim() || undefined) : undefined,
         aria2PathFilms: aria2Form.aria2Enabled ? (aria2Form.aria2PathFilms.trim() || undefined) : undefined,
         aria2PathSeries: aria2Form.aria2Enabled ? (aria2Form.aria2PathSeries.trim() || undefined) : undefined,
+        aria2PathAnimes: aria2Form.aria2Enabled ? (aria2Form.aria2PathAnimes.trim() || undefined) : undefined,
         aria2PathSeriesSeason: aria2Form.aria2Enabled ? (aria2Form.aria2PathSeriesSeason.trim() || undefined) : undefined
       })
       setAria2Success('Configuration Aria2 mise à jour avec succès')
@@ -534,7 +538,7 @@ const SettingsPage = () => {
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-white">Téléchargement vers NAS (Aria2)</h2>
-                <p className="text-sm text-gray-400">Configurez votre instance Aria2 et les chemins de téléchargement (films, séries, saisons)</p>
+                <p className="text-sm text-gray-400">Configurez votre instance Aria2 et les chemins de téléchargement (films, séries, animes, saisons)</p>
               </div>
             </div>
             <button
@@ -694,6 +698,24 @@ const SettingsPage = () => {
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Dossier racine des séries. Sous-dossiers série puis saison créés automatiquement.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="aria2PathAnimes" className="block text-sm font-medium text-gray-300 mb-2">
+                  Chemin de téléchargement pour animes
+                </label>
+                <input
+                  type="text"
+                  id="aria2PathAnimes"
+                  name="aria2PathAnimes"
+                  value={aria2Form.aria2PathAnimes}
+                  onChange={handleAria2Change}
+                  className="input-field w-full"
+                  placeholder="/media/animes"
+                  disabled={isUpdatingAria2}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Dossier racine des animes. Sous-dossiers anime puis saison créés automatiquement.
                 </p>
               </div>
               <div>

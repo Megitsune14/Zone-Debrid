@@ -786,10 +786,11 @@ export const sendToAria2 = async (req: Request, res: Response, next: NextFunctio
     const hasBasePath = Boolean(user.aria2DownloadBasePath?.trim());
     const hasPathFilms = Boolean(user.aria2PathFilms?.trim());
     const hasPathSeries = Boolean(user.aria2PathSeries?.trim());
-    if (!hasBasePath && !hasPathFilms && !hasPathSeries) {
+    const hasPathAnimes = Boolean(user.aria2PathAnimes?.trim());
+    if (!hasBasePath && !hasPathFilms && !hasPathSeries && !hasPathAnimes) {
       return res.status(400).json({
         success: false,
-        message: 'Configurez au moins un chemin : chemin de base ou chemins films/séries dans les paramètres Aria2'
+        message: 'Configurez au moins un chemin : chemin de base ou chemins films/séries/animes dans les paramètres Aria2'
       });
     }
 
@@ -818,6 +819,7 @@ export const sendToAria2 = async (req: Request, res: Response, next: NextFunctio
         originalFilename: item.filename,
         pathFilms: user.aria2PathFilms,
         pathSeries: user.aria2PathSeries,
+        pathAnimes: user.aria2PathAnimes,
         pathSeriesSeason: user.aria2PathSeriesSeason
       });
 
