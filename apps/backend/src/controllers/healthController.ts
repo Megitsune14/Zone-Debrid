@@ -9,6 +9,7 @@ async function checkZoneTelechargement (): Promise<'up' | 'down'> {
   try {
     const zt = await ZTUrl.findOne().lean()
     const url = zt?.currentUrl ?? 'https://zone-telechargement.diy/'
+    console.log('url', url)
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS)
     const res = await fetch(url, {
@@ -17,8 +18,10 @@ async function checkZoneTelechargement (): Promise<'up' | 'down'> {
       headers: { 'User-Agent': 'Zone-Debrid-HealthCheck/1.0' }
     })
     clearTimeout(timeout)
+    console.log('res', res.ok, res.status)
     return res.ok || res.status < 500 ? 'up' : 'down'
-  } catch {
+  } catch (err) {
+    console.log('error', err)
     return 'down'
   }
 }
@@ -32,9 +35,11 @@ async function checkAllDebrid (): Promise<'up' | 'down'> {
       signal: controller.signal,
       headers: { 'User-Agent': 'Zone-Debrid-HealthCheck/1.0' }
     })
+    console.log('res', res.ok, res.status)
     clearTimeout(timeout)
     return res.status < 500 ? 'up' : 'down'
-  } catch {
+  } catch (err) {
+    console.log('error', err)
     return 'down'
   }
 }
