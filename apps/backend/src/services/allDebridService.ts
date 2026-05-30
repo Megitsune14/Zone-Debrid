@@ -1,15 +1,20 @@
 import Logger from '@/base/Logger';
 import https from 'https';
 import http from 'http';
-import zlib from 'zlib';
 import { URL } from 'url';
+import { ProxyAgent } from 'undici';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const API_BASE = "https://api.alldebrid.com/v4";
 const VALIDATION_TIMEOUT_MS = 4000;
 
-const agent = process.env.PROXY_URL && process.env.NODE_ENV === 'production' ? new HttpsProxyAgent(process.env.PROXY_URL) : undefined;
-const apiAgent = process.env.NODE_ENV === 'production' ? agent : undefined;
+const downloadAgent = process.env.PROXY_URL && process.env.NODE_ENV === 'production'
+  ? new HttpsProxyAgent(process.env.PROXY_URL)
+  : undefined;
+
+const apiDispatcher = process.env.PROXY_URL && process.env.NODE_ENV === 'production'
+  ? new ProxyAgent(process.env.PROXY_URL)
+  : undefined;
 
 interface AllDebridResponse {
   status: string;
@@ -28,105 +33,35 @@ interface LinkAvailability {
   error?: string;
 }
 
-interface HttpsRequestOptions {
-  method: 'GET' | 'POST';
-  path: string;
-  headers?: Record<string, string>;
-  body?: string;
+interface FetchApiInit extends RequestInit {
   timeoutMs?: number;
 }
 
-const decompressResponseBody = (body: Buffer, contentEncoding?: string): Buffer => {
-  switch (contentEncoding) {
-    case 'gzip':
-      return zlib.gunzipSync(body);
-    case 'deflate':
-      return zlib.inflateSync(body);
-    case 'br':
-      return zlib.brotliDecompressSync(body);
-    default:
-      return body;
-  }
-};
+/**
+ * fetch vers l'API AllDebrid, avec proxy VPN en production (undici ProxyAgent).
+ */
+const fetchApi = async (path: string, init: FetchApiInit = {}): Promise<Response> => {
+  const { timeoutMs, ...fetchInit } = init;
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-const parseAllDebridResponse = (statusCode: number, responseBody: string): AllDebridResponse => {
-  if (!responseBody.trim()) {
-    throw new Error(`AllDebrid API returned empty response (HTTP ${statusCode})`);
+  if (timeoutMs !== undefined) {
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   }
 
   try {
-    return JSON.parse(responseBody) as AllDebridResponse;
-  } catch {
-    throw new Error(`AllDebrid API returned invalid JSON (HTTP ${statusCode})`);
-  }
-};
-
-/**
- * Requête HTTPS vers l'API AllDebrid, avec proxy VPN en production.
- */
-const requestHttps = (options: HttpsRequestOptions): Promise<{ statusCode: number; body: string }> => {
-  return new Promise((resolve, reject) => {
-    const parsedUrl = new URL(`${API_BASE}${options.path}`);
-    const headers: Record<string, string> = {
-      'User-Agent': 'Zone-Debrid/1.0',
-      'Accept-Encoding': 'identity',
-      ...options.headers
-    };
-    if (options.body !== undefined) {
-      headers['Content-Length'] = String(Buffer.byteLength(options.body));
-    }
-
-    const req = https.request(
-      {
-        hostname: parsedUrl.hostname,
-        port: parsedUrl.port || 443,
-        path: parsedUrl.pathname + parsedUrl.search,
-        method: options.method,
-        headers,
-        agent: apiAgent
+    return await fetch(`${API_BASE}${path}`, {
+      ...fetchInit,
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Zone-Debrid/1.0',
+        ...fetchInit.headers
       },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk) => {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        });
-        res.on('end', () => {
-          clearRequestTimeout();
-          try {
-            const rawBody = Buffer.concat(chunks);
-            const contentEncoding = typeof res.headers['content-encoding'] === 'string'
-              ? res.headers['content-encoding']
-              : undefined;
-            const body = decompressResponseBody(rawBody, contentEncoding).toString('utf8');
-            resolve({ statusCode: res.statusCode ?? 0, body });
-          } catch (error) {
-            reject(error);
-          }
-        });
-      }
-    );
-
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const clearRequestTimeout = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-
-    if (options.timeoutMs !== undefined) {
-      timeoutId = setTimeout(() => {
-        const err = new Error('The operation was aborted');
-        err.name = 'AbortError';
-        req.destroy(err);
-      }, options.timeoutMs);
-    }
-
-    req.on('error', (error) => {
-      clearRequestTimeout();
-      reject(error);
+      ...(apiDispatcher && { dispatcher: apiDispatcher })
     });
-
-    if (options.body !== undefined) req.write(options.body);
-    req.end();
-  });
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 };
 
 /**
@@ -138,22 +73,16 @@ const requestHttps = (options: HttpsRequestOptions): Promise<{ statusCode: numbe
  * @throws {Error} When API returns error status
  */
 const postForm = async (path: string, formData: Record<string, string>, apiKey: string): Promise<any> => {
-  const body = new URLSearchParams(formData).toString();
-  const { statusCode, body: responseBody } = await requestHttps({
+  const response = await fetchApi(path, {
     method: 'POST',
-    path,
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/x-www-form-urlencoded'
     },
-    body
+    body: new URLSearchParams(formData)
   });
 
-  if (statusCode >= 400) {
-    throw new Error(`AllDebrid API HTTP ${statusCode}`);
-  }
-
-  const data = parseAllDebridResponse(statusCode, responseBody);
+  const data: AllDebridResponse = await response.json();
 
   if (data.status !== 'success') {
     throw new Error(`${data.error?.code}: ${data.error?.message}`);
@@ -181,13 +110,13 @@ const checkLinkAvailability = async (dlProtectUrl: string, apiKey: string, isCan
       }
 
       Logger.debug(`Checking link availability: ${dlProtectUrl} (attempt ${retryCount + 1})`);
-      
+
       // 1) Extraire les liens depuis dl-protect (redirector)
       Logger.debug(`Processing dl-protect URL: ${dlProtectUrl}`)
-      const redirectorData = await postForm("/link/redirector", { 
-        link: dlProtectUrl 
+      const redirectorData = await postForm("/link/redirector", {
+        link: dlProtectUrl
       }, apiKey);
-      
+
       if (!redirectorData.links || redirectorData.links.length === 0) {
         return {
           available: false,
@@ -203,10 +132,10 @@ const checkLinkAvailability = async (dlProtectUrl: string, apiKey: string, isCan
         }
 
         try {
-          const unlockedData = await postForm("/link/unlock", { 
-            link: redirectLink 
+          const unlockedData = await postForm("/link/unlock", {
+            link: redirectLink
           }, apiKey);
-          
+
           if (unlockedData.link) {
             Logger.debug(`Link unlocked successfully: ${unlockedData.filename}`);
             return {
@@ -230,34 +159,26 @@ const checkLinkAvailability = async (dlProtectUrl: string, apiKey: string, isCan
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
-      
+
       // Si c'est une annulation, la propager
       if (errorMessage === 'Vérification annulée par l\'utilisateur') {
         throw error;
       }
-      
+
       Logger.error(`Error checking link availability (attempt ${retryCount + 1}): ${errorMessage}`);
 
-      const isRetryableError =
-        errorMessage.includes('Could not extract links') ||
-        errorMessage.includes('empty response') ||
-        errorMessage.includes('invalid JSON');
+      if (errorMessage.includes('Could not extract links')) {
+        retryCount++;
+        Logger.info(`Could not extract links, retrying... (attempt ${retryCount})`);
 
-      if (isRetryableError) {
-          retryCount++;
-          Logger.info(`Could not extract links, retrying... (attempt ${retryCount})`);
-          
-          // Vérifier si la vérification a été annulée avant de réessayer
-          if (isCancelled && isCancelled()) {
-            throw new Error('Vérification annulée par l\'utilisateur');
-          }
-          
-          // Attendre un peu avant de réessayer
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          continue;
+        if (isCancelled && isCancelled()) {
+          throw new Error('Vérification annulée par l\'utilisateur');
         }
-      
-      // Pour les autres erreurs, on arrête
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        continue;
+      }
+
       return {
         available: false,
         error: errorMessage
@@ -272,12 +193,11 @@ const checkLinkAvailability = async (dlProtectUrl: string, apiKey: string, isCan
  */
 export const isAvailable = async (): Promise<boolean> => {
   try {
-    const { statusCode } = await requestHttps({
+    const response = await fetchApi('/', {
       method: 'GET',
-      path: '/',
       timeoutMs: VALIDATION_TIMEOUT_MS
     });
-    return statusCode < 500;
+    return response.status < 500;
   } catch {
     return false;
   }
@@ -289,23 +209,18 @@ export const isAvailable = async (): Promise<boolean> => {
  */
 const validateApiKey = async (apiKey: string): Promise<boolean> => {
   try {
-    const { statusCode, body } = await requestHttps({
+    const response = await fetchApi('/user', {
       method: 'POST',
-      path: '/user',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: '',
+      body: new URLSearchParams({}),
       timeoutMs: VALIDATION_TIMEOUT_MS
     });
-    if (statusCode >= 400) {
-      Logger.error(`AllDebrid API key validation HTTP error: ${statusCode}`);
-      return false;
-    }
-    const data = parseAllDebridResponse(statusCode, body);
+    const data: AllDebridResponse = await response.json();
     if (data.status === 'success') return true;
-    Logger.error(`AllDebrid API key invalid: ${data.error?.code ?? statusCode}`);
+    Logger.error(`AllDebrid API key invalid: ${data.error?.code ?? response.status}`);
     return false;
   } catch (error) {
     if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TypeError')) {
@@ -355,7 +270,7 @@ const proxyDownloadWithRange = async (
         path: parsedUrl.pathname + parsedUrl.search,
         method: 'GET',
         headers: requestHeaders,
-        agent: apiAgent
+        agent: downloadAgent
       };
 
       const req = httpModule.request(options, (res) => {
