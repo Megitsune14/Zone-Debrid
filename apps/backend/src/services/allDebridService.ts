@@ -1,6 +1,7 @@
 import Logger from '@/base/Logger';
 import https from 'https';
 import http from 'http';
+import zlib from 'zlib';
 import { URL } from 'url';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
@@ -35,6 +36,31 @@ interface HttpsRequestOptions {
   timeoutMs?: number;
 }
 
+const decompressResponseBody = (body: Buffer, contentEncoding?: string): Buffer => {
+  switch (contentEncoding) {
+    case 'gzip':
+      return zlib.gunzipSync(body);
+    case 'deflate':
+      return zlib.inflateSync(body);
+    case 'br':
+      return zlib.brotliDecompressSync(body);
+    default:
+      return body;
+  }
+};
+
+const parseAllDebridResponse = (statusCode: number, responseBody: string): AllDebridResponse => {
+  if (!responseBody.trim()) {
+    throw new Error(`AllDebrid API returned empty response (HTTP ${statusCode})`);
+  }
+
+  try {
+    return JSON.parse(responseBody) as AllDebridResponse;
+  } catch {
+    throw new Error(`AllDebrid API returned invalid JSON (HTTP ${statusCode})`);
+  }
+};
+
 /**
  * Requête HTTPS vers l'API AllDebrid, avec proxy VPN en production.
  */
@@ -43,6 +69,7 @@ const requestHttps = (options: HttpsRequestOptions): Promise<{ statusCode: numbe
     const parsedUrl = new URL(`${API_BASE}${options.path}`);
     const headers: Record<string, string> = {
       'User-Agent': 'Zone-Debrid/1.0',
+      'Accept-Encoding': 'identity',
       ...options.headers
     };
     if (options.body !== undefined) {
@@ -59,9 +86,23 @@ const requestHttps = (options: HttpsRequestOptions): Promise<{ statusCode: numbe
         agent: apiAgent
       },
       (res) => {
-        let body = '';
-        res.on('data', (chunk) => { body += chunk; });
-        res.on('end', () => resolve({ statusCode: res.statusCode ?? 0, body }));
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        res.on('end', () => {
+          clearRequestTimeout();
+          try {
+            const rawBody = Buffer.concat(chunks);
+            const contentEncoding = typeof res.headers['content-encoding'] === 'string'
+              ? res.headers['content-encoding']
+              : undefined;
+            const body = decompressResponseBody(rawBody, contentEncoding).toString('utf8');
+            resolve({ statusCode: res.statusCode ?? 0, body });
+          } catch (error) {
+            reject(error);
+          }
+        });
       }
     );
 
@@ -98,7 +139,7 @@ const requestHttps = (options: HttpsRequestOptions): Promise<{ statusCode: numbe
  */
 const postForm = async (path: string, formData: Record<string, string>, apiKey: string): Promise<any> => {
   const body = new URLSearchParams(formData).toString();
-  const { body: responseBody } = await requestHttps({
+  const { statusCode, body: responseBody } = await requestHttps({
     method: 'POST',
     path,
     headers: {
@@ -108,7 +149,11 @@ const postForm = async (path: string, formData: Record<string, string>, apiKey: 
     body
   });
 
-  const data: AllDebridResponse = JSON.parse(responseBody);
+  if (statusCode >= 400) {
+    throw new Error(`AllDebrid API HTTP ${statusCode}`);
+  }
+
+  const data = parseAllDebridResponse(statusCode, responseBody);
 
   if (data.status !== 'success') {
     throw new Error(`${data.error?.code}: ${data.error?.message}`);
@@ -192,9 +237,13 @@ const checkLinkAvailability = async (dlProtectUrl: string, apiKey: string, isCan
       }
       
       Logger.error(`Error checking link availability (attempt ${retryCount + 1}): ${errorMessage}`);
-      
-                // Si c'est "Could not extract links", on réessaie indéfiniment
-        if (errorMessage.includes('Could not extract links')) {
+
+      const isRetryableError =
+        errorMessage.includes('Could not extract links') ||
+        errorMessage.includes('empty response') ||
+        errorMessage.includes('invalid JSON');
+
+      if (isRetryableError) {
           retryCount++;
           Logger.info(`Could not extract links, retrying... (attempt ${retryCount})`);
           
@@ -250,7 +299,11 @@ const validateApiKey = async (apiKey: string): Promise<boolean> => {
       body: '',
       timeoutMs: VALIDATION_TIMEOUT_MS
     });
-    const data: AllDebridResponse = JSON.parse(body);
+    if (statusCode >= 400) {
+      Logger.error(`AllDebrid API key validation HTTP error: ${statusCode}`);
+      return false;
+    }
+    const data = parseAllDebridResponse(statusCode, body);
     if (data.status === 'success') return true;
     Logger.error(`AllDebrid API key invalid: ${data.error?.code ?? statusCode}`);
     return false;
