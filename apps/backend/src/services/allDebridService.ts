@@ -205,37 +205,167 @@ const readResponseBody = async (response: Response): Promise<string> => {
   return decodeResponseBody(buffer, response.headers.get('content-encoding'));
 };
 
-const parseAllDebridJson = async (
-  response: Response,
+const parseAllDebridJsonBody = (
+  statusCode: number,
+  rawBuffer: Buffer,
+  contentEncoding: string | undefined | null,
   url: string,
-  context: string
-): Promise<AllDebridResponse> => {
-  const rawBuffer = Buffer.from(await response.arrayBuffer());
-  const contentEncoding = response.headers.get('content-encoding');
+  context: string,
+  method: string
+): AllDebridResponse => {
   const rawBody = decodeResponseBody(rawBuffer, contentEncoding);
 
-  logAllDebridResponse('api', context, url, {
-    status: response.status,
-    statusText: response.statusText,
-    contentType: response.headers.get('content-type') ?? 'none',
+  logAllDebridResponse('api', method, url, {
+    context,
+    status: statusCode,
     contentEncoding: contentEncoding ?? 'none',
-    contentLength: response.headers.get('content-length') ?? 'unknown',
     rawBodyLength: rawBuffer.length,
     decodedBodyLength: rawBody.length,
     bodyPreview: truncateForLog(rawBody || '[empty body]')
   });
 
   if (!rawBody.trim()) {
-    throw new Error(`AllDebrid API empty response (HTTP ${response.status}) [${context}]`);
+    throw new Error(`AllDebrid API empty response (HTTP ${statusCode}) [${context}]`);
   }
 
   try {
     return JSON.parse(rawBody) as AllDebridResponse;
   } catch {
     throw new Error(
-      `AllDebrid API invalid JSON (HTTP ${response.status}) [${context}]: ${truncateForLog(rawBody, 300)}`
+      `AllDebrid API invalid JSON (HTTP ${statusCode}) [${context}]: ${truncateForLog(rawBody, 300)}`
     );
   }
+};
+
+const parseAllDebridJson = async (
+  response: Response,
+  url: string,
+  context: string
+): Promise<AllDebridResponse> => {
+  const rawBuffer = Buffer.from(await response.arrayBuffer());
+  return parseAllDebridJsonBody(
+    response.status,
+    rawBuffer,
+    response.headers.get('content-encoding'),
+    url,
+    context,
+    'fetch'
+  );
+};
+
+const normalizeApiPath = (path: string): string =>
+  path.endsWith('/') ? path : `${path}/`;
+
+/**
+ * POST form-urlencoded via https.request + HttpsProxyAgent.
+ * fetch+ProxyAgent casse /link/redirector (301 sans Location) — ce transport fonctionne via Gluetun.
+ */
+const requestApiPostForm = (
+  path: string,
+  formData: Record<string, string>,
+  apiKey: string
+): Promise<AllDebridResponse> => {
+  const normalizedPath = normalizeApiPath(path);
+  const body = new URLSearchParams(formData).toString();
+
+  const executePost = (requestUrl: string, redirectAttempt = 0): Promise<AllDebridResponse> => {
+    return new Promise((resolve, reject) => {
+      const parsedUrl = new URL(requestUrl);
+      const startedAt = Date.now();
+
+      if (redirectAttempt === 0) {
+        logAllDebridRequest('api', 'POST', requestUrl, {
+          context: normalizedPath,
+          transport: 'https.request',
+          headers: {
+            Authorization: maskBearerToken(`Bearer ${apiKey}`),
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: truncateForLog(body)
+        });
+      }
+
+      const req = https.request(
+        {
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port || 443,
+          path: parsedUrl.pathname + parsedUrl.search,
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(body),
+            'User-Agent': 'Zone-Debrid/1.0',
+            'Accept-Encoding': 'identity'
+          },
+          agent: downloadAgent
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk) => {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          });
+          res.on('end', () => {
+            try {
+              const statusCode = res.statusCode ?? 0;
+              const rawBuffer = Buffer.concat(chunks);
+              const contentEncoding = typeof res.headers['content-encoding'] === 'string'
+                ? res.headers['content-encoding']
+                : undefined;
+
+              if (REDIRECT_STATUSES.has(statusCode) && redirectAttempt < MAX_API_REDIRECTS) {
+                const location = res.headers.location;
+                Logger.info(`[AllDebrid][api] https redirect ${statusCode} attempt=${redirectAttempt + 1} location=${location ?? 'missing'}`);
+
+                if (!location) {
+                  reject(new Error(`AllDebrid redirect without Location header (HTTP ${statusCode})`));
+                  return;
+                }
+
+                const nextUrl = new URL(location, requestUrl).toString();
+                executePost(nextUrl, redirectAttempt + 1).then(resolve).catch(reject);
+                return;
+              }
+
+              logAllDebridResponse('api', 'POST', requestUrl, {
+                context: normalizedPath,
+                transport: 'https.request',
+                status: statusCode,
+                durationMs: Date.now() - startedAt,
+                redirectAttempts: redirectAttempt,
+                headers: res.headers
+              });
+
+              resolve(parseAllDebridJsonBody(
+                statusCode,
+                rawBuffer,
+                contentEncoding,
+                requestUrl,
+                normalizedPath,
+                'POST'
+              ));
+            } catch (error) {
+              reject(error);
+            }
+          });
+        }
+      );
+
+      req.on('error', (error) => {
+        logAllDebridError('api', 'POST', requestUrl, error, {
+          context: normalizedPath,
+          transport: 'https.request',
+          durationMs: Date.now() - startedAt
+        });
+        reject(error);
+      });
+
+      req.write(body);
+      req.end();
+    });
+  };
+
+  return executePost(`${API_BASE}${normalizedPath}`);
 };
 
 /**
@@ -316,26 +446,16 @@ const fetchApi = async (path: string, init: FetchApiInit = {}): Promise<Response
 };
 
 /**
- * Send POST form data to AllDebrid API
+ * Send POST form data to AllDebrid API (https.request — compatible VPN Gluetun)
  */
 const postForm = async (path: string, formData: Record<string, string>, apiKey: string): Promise<any> => {
-  const response = await fetchApi(path, {
-    method: 'POST',
-    logContext: path,
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: new URLSearchParams(formData)
-  });
-
-  const data = await parseAllDebridJson(response, `${API_BASE}${path}`, path);
+  const data = await requestApiPostForm(path, formData, apiKey);
 
   if (data.status !== 'success') {
     throw new Error(`${data.error?.code}: ${data.error?.message}`);
   }
 
-  Logger.info(`[AllDebrid][api] postForm success path=${path}`);
+  Logger.info(`[AllDebrid][api] postForm success path=${normalizeApiPath(path)}`);
   return data.data;
 };
 
