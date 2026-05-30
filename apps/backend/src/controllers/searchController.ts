@@ -138,12 +138,14 @@ const searchAll = async (req: Request, res: Response, next: NextFunction) => {
     }
 
     // Validate type parameter if provided
-    const validTypes = ['films', 'series', 'mangas'];
-    let contentType: string | undefined;
+    const validTypes = ['films', 'series', 'mangas'] as const;
+    type SearchContentType = typeof validTypes[number];
+    let contentType: SearchContentType | undefined;
     
     if (type && typeof type === 'string') {
-      if (validTypes.includes(type.toLowerCase())) {
-        contentType = type.toLowerCase();
+      const normalizedType = type.toLowerCase();
+      if ((validTypes as readonly string[]).includes(normalizedType)) {
+        contentType = normalizedType as SearchContentType;
       } else {
         const errorResponse: SearchErrorResponse = {
           success: false,
