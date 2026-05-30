@@ -253,19 +253,16 @@ const parseAllDebridJson = async (
   );
 };
 
-const normalizeApiPath = (path: string): string =>
-  path.endsWith('/') ? path : `${path}/`;
-
 /**
  * POST form-urlencoded via https.request + HttpsProxyAgent.
  * fetch+ProxyAgent casse /link/redirector (301 sans Location) — ce transport fonctionne via Gluetun.
+ * Endpoints docs : /v4/link/redirector et /v4/link/unlock (sans slash final).
  */
 const requestApiPostForm = (
   path: string,
   formData: Record<string, string>,
   apiKey: string
 ): Promise<AllDebridResponse> => {
-  const normalizedPath = normalizeApiPath(path);
   const body = new URLSearchParams(formData).toString();
 
   const executePost = (requestUrl: string, redirectAttempt = 0): Promise<AllDebridResponse> => {
@@ -275,7 +272,7 @@ const requestApiPostForm = (
 
       if (redirectAttempt === 0) {
         logAllDebridRequest('api', 'POST', requestUrl, {
-          context: normalizedPath,
+          context: path,
           transport: 'https.request',
           headers: {
             Authorization: maskBearerToken(`Bearer ${apiKey}`),
@@ -328,7 +325,7 @@ const requestApiPostForm = (
               }
 
               logAllDebridResponse('api', 'POST', requestUrl, {
-                context: normalizedPath,
+                context: path,
                 transport: 'https.request',
                 status: statusCode,
                 durationMs: Date.now() - startedAt,
@@ -341,7 +338,7 @@ const requestApiPostForm = (
                 rawBuffer,
                 contentEncoding,
                 requestUrl,
-                normalizedPath,
+                path,
                 'POST'
               ));
             } catch (error) {
@@ -353,7 +350,7 @@ const requestApiPostForm = (
 
       req.on('error', (error) => {
         logAllDebridError('api', 'POST', requestUrl, error, {
-          context: normalizedPath,
+          context: path,
           transport: 'https.request',
           durationMs: Date.now() - startedAt
         });
@@ -365,7 +362,7 @@ const requestApiPostForm = (
     });
   };
 
-  return executePost(`${API_BASE}${normalizedPath}`);
+  return executePost(`${API_BASE}${path}`);
 };
 
 /**
@@ -455,7 +452,7 @@ const postForm = async (path: string, formData: Record<string, string>, apiKey: 
     throw new Error(`${data.error?.code}: ${data.error?.message}`);
   }
 
-  Logger.info(`[AllDebrid][api] postForm success path=${normalizeApiPath(path)}`);
+  Logger.info(`[AllDebrid][api] postForm success path=${path}`);
   return data.data;
 };
 
