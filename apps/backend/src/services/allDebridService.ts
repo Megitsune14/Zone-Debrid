@@ -8,6 +8,7 @@ const API_BASE = "https://api.alldebrid.com/v4";
 const VALIDATION_TIMEOUT_MS = 4000;
 
 const agent = process.env.PROXY_URL && process.env.NODE_ENV === 'production' ? new HttpsProxyAgent(process.env.PROXY_URL) : undefined;
+const apiAgent = process.env.NODE_ENV === 'production' ? agent : undefined;
 
 interface AllDebridResponse {
   status: string;
@@ -26,6 +27,67 @@ interface LinkAvailability {
   error?: string;
 }
 
+interface HttpsRequestOptions {
+  method: 'GET' | 'POST';
+  path: string;
+  headers?: Record<string, string>;
+  body?: string;
+  timeoutMs?: number;
+}
+
+/**
+ * Requête HTTPS vers l'API AllDebrid, avec proxy VPN en production.
+ */
+const requestHttps = (options: HttpsRequestOptions): Promise<{ statusCode: number; body: string }> => {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(`${API_BASE}${options.path}`);
+    const headers: Record<string, string> = {
+      'User-Agent': 'Zone-Debrid/1.0',
+      ...options.headers
+    };
+    if (options.body !== undefined) {
+      headers['Content-Length'] = String(Buffer.byteLength(options.body));
+    }
+
+    const req = https.request(
+      {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || 443,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: options.method,
+        headers,
+        agent: apiAgent
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk) => { body += chunk; });
+        res.on('end', () => resolve({ statusCode: res.statusCode ?? 0, body }));
+      }
+    );
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const clearRequestTimeout = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+
+    if (options.timeoutMs !== undefined) {
+      timeoutId = setTimeout(() => {
+        const err = new Error('The operation was aborted');
+        err.name = 'AbortError';
+        req.destroy(err);
+      }, options.timeoutMs);
+    }
+
+    req.on('error', (error) => {
+      clearRequestTimeout();
+      reject(error);
+    });
+
+    if (options.body !== undefined) req.write(options.body);
+    req.end();
+  });
+};
+
 /**
  * Send POST form data to AllDebrid API
  * @param {string} path - API endpoint path
@@ -35,23 +97,23 @@ interface LinkAvailability {
  * @throws {Error} When API returns error status
  */
 const postForm = async (path: string, formData: Record<string, string>, apiKey: string): Promise<any> => {
-  const body = new URLSearchParams(formData);
-  
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
+  const body = new URLSearchParams(formData).toString();
+  const { body: responseBody } = await requestHttps({
+    method: 'POST',
+    path,
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/x-www-form-urlencoded"
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
     },
     body
   });
 
-  const data: AllDebridResponse = await response.json();
-  
-  if (data.status !== "success") {
+  const data: AllDebridResponse = JSON.parse(responseBody);
+
+  if (data.status !== 'success') {
     throw new Error(`${data.error?.code}: ${data.error?.message}`);
   }
-  
+
   return data.data;
 };
 
@@ -161,15 +223,12 @@ const checkLinkAvailability = async (dlProtectUrl: string, apiKey: string, isCan
  */
 export const isAvailable = async (): Promise<boolean> => {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
-    const res = await fetch(`${API_BASE}/`, {
+    const { statusCode } = await requestHttps({
       method: 'GET',
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Zone-Debrid/1.0' }
+      path: '/',
+      timeoutMs: VALIDATION_TIMEOUT_MS
     });
-    clearTimeout(timeout);
-    return res.status < 500;
+    return statusCode < 500;
   } catch {
     return false;
   }
@@ -180,26 +239,22 @@ export const isAvailable = async (): Promise<boolean> => {
  * Returns false only for invalid key; throws on network/timeout so caller can return 502.
  */
 const validateApiKey = async (apiKey: string): Promise<boolean> => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
   try {
-    const body = new URLSearchParams({});
-    const res = await fetch(`${API_BASE}/user`, {
+    const { statusCode, body } = await requestHttps({
       method: 'POST',
+      path: '/user',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body,
-      signal: controller.signal
+      body: '',
+      timeoutMs: VALIDATION_TIMEOUT_MS
     });
-    clearTimeout(timeout);
-    const data: AllDebridResponse = await res.json();
+    const data: AllDebridResponse = JSON.parse(body);
     if (data.status === 'success') return true;
-    Logger.error(`AllDebrid API key invalid: ${data.error?.code ?? res.status}`);
+    Logger.error(`AllDebrid API key invalid: ${data.error?.code ?? statusCode}`);
     return false;
   } catch (error) {
-    clearTimeout(timeout);
     if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TypeError')) {
       throw error;
     }
@@ -247,7 +302,7 @@ const proxyDownloadWithRange = async (
         path: parsedUrl.pathname + parsedUrl.search,
         method: 'GET',
         headers: requestHeaders,
-        agent: process.env.NODE_ENV === 'production' ? agent : undefined
+        agent: apiAgent
       };
 
       const req = httpModule.request(options, (res) => {

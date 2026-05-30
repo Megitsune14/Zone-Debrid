@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import ZTUrl from '@/models/ZTUrl'
 import Logger from '@/base/Logger'
 import { sendServiceDownAlert, clearServiceDownCooldown } from '@/services/discordWebhookService'
+import { isAvailable as isAllDebridAvailable } from '@/services/allDebridService'
 
 const CHECK_TIMEOUT_MS = 4500
 
@@ -27,21 +28,7 @@ async function checkZoneTelechargement (): Promise<'up' | 'down'> {
 }
 
 async function checkAllDebrid (): Promise<'up' | 'down'> {
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS)
-    const res = await fetch('https://api.alldebrid.com/v4/', {
-      method: 'GET',
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Zone-Debrid-HealthCheck/1.0' }
-    })
-    console.log('res', res.ok, res.status)
-    clearTimeout(timeout)
-    return res.status < 500 ? 'up' : 'down'
-  } catch (err) {
-    console.log('error', err)
-    return 'down'
-  }
+  return (await isAllDebridAvailable()) ? 'up' : 'down'
 }
 
 /**
