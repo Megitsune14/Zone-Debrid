@@ -9,6 +9,8 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 const API_BASE = "https://api.alldebrid.com/v4";
 const VALIDATION_TIMEOUT_MS = 4000;
 const LOG_BODY_MAX_LENGTH = 2000;
+const MAX_API_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 307, 308]);
 
 const downloadAgent = process.env.PROXY_URL && process.env.NODE_ENV === 'production'
   ? new HttpsProxyAgent(process.env.PROXY_URL)
@@ -94,6 +96,14 @@ const getProxyLogContext = (): string => {
   const viaProxy = Boolean(apiDispatcher || downloadAgent);
   const proxyUrl = process.env.PROXY_URL ?? 'undefined';
   return `proxy=${viaProxy ? 'enabled' : 'disabled'} env=${process.env.NODE_ENV ?? 'unknown'} proxyUrl=${proxyUrl}`;
+};
+
+const headersToObject = (headers: Headers): Record<string, string> => {
+  const result: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    result[key] = value;
+  });
+  return result;
 };
 
 const logAllDebridRequest = (
@@ -230,11 +240,12 @@ const parseAllDebridJson = async (
 
 /**
  * fetch vers l'API AllDebrid, avec proxy VPN en production (undici ProxyAgent).
+ * Redirects suivis manuellement : le proxy ne propage pas toujours les 301 POST automatiquement.
  */
 const fetchApi = async (path: string, init: FetchApiInit = {}): Promise<Response> => {
   const { timeoutMs, logContext, ...fetchInit } = init;
   const method = (fetchInit.method ?? 'GET').toUpperCase();
-  const url = `${API_BASE}${path}`;
+  let url = `${API_BASE}${path}`;
   const context = logContext ?? path;
   const startedAt = Date.now();
   const controller = new AbortController();
@@ -251,27 +262,48 @@ const fetchApi = async (path: string, init: FetchApiInit = {}): Promise<Response
     timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   }
 
+  const requestInit: RequestInit = {
+    ...fetchInit,
+    method,
+    signal: controller.signal,
+    redirect: 'manual',
+    headers: {
+      'User-Agent': 'Zone-Debrid/1.0',
+      'Accept-Encoding': 'identity',
+      ...fetchInit.headers
+    },
+    ...(apiDispatcher && { dispatcher: apiDispatcher })
+  };
+
   try {
-    const response = await fetch(url, {
-      ...fetchInit,
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Zone-Debrid/1.0',
-        'Accept-Encoding': 'identity',
-        ...fetchInit.headers
-      },
-      ...(apiDispatcher && { dispatcher: apiDispatcher })
-    });
+    for (let redirectAttempt = 0; redirectAttempt <= MAX_API_REDIRECTS; redirectAttempt++) {
+      const response = await fetch(url, requestInit);
 
-    logAllDebridResponse('api', method, url, {
-      context,
-      status: response.status,
-      statusText: response.statusText,
-      durationMs: Date.now() - startedAt,
-      headers: Object.fromEntries(response.headers.entries())
-    });
+      if (REDIRECT_STATUSES.has(response.status)) {
+        const location = response.headers.get('location');
+        Logger.info(`[AllDebrid][api] redirect ${response.status} attempt=${redirectAttempt + 1} from=${url} location=${location ?? 'missing'}`);
 
-    return response;
+        if (!location) {
+          throw new Error(`AllDebrid redirect without Location header (HTTP ${response.status})`);
+        }
+
+        url = new URL(location, url).toString();
+        continue;
+      }
+
+      logAllDebridResponse('api', method, url, {
+        context,
+        status: response.status,
+        statusText: response.statusText,
+        durationMs: Date.now() - startedAt,
+        redirectAttempts: redirectAttempt,
+        headers: headersToObject(response.headers)
+      });
+
+      return response;
+    }
+
+    throw new Error('AllDebrid API: too many redirects');
   } catch (error) {
     logAllDebridError('api', method, url, error, {
       context,
