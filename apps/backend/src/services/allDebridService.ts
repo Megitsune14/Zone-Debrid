@@ -1,6 +1,7 @@
 import Logger from '@/base/Logger';
 import https from 'https';
 import http from 'http';
+import zlib from 'zlib';
 import { URL } from 'url';
 import { ProxyAgent } from 'undici';
 import { HttpsProxyAgent } from 'https-proxy-agent';
@@ -136,18 +137,81 @@ const logAllDebridError = (
   if (stack) Logger.error(`[AllDebrid][${kind}] stack=${stack}`);
 };
 
+const isGzipBuffer = (buffer: Buffer): boolean =>
+  buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b;
+
+/**
+ * Décode le corps HTTP : le proxy VPN peut renvoyer du gzip/br sans header Content-Encoding.
+ */
+const decodeResponseBody = (buffer: Buffer, contentEncoding?: string | null): string => {
+  const encoding = contentEncoding?.toLowerCase();
+
+  const tryDecode = (label: string, fn: (input: Buffer) => Buffer): string | null => {
+    try {
+      const decoded = fn(buffer).toString('utf8');
+      if (decoded.trim().startsWith('{') || decoded.trim().startsWith('[')) {
+        Logger.info(`[AllDebrid][api] body decoded as ${label}`);
+        return decoded;
+      }
+    } catch {
+      // format non compatible, on essaie le suivant
+    }
+    return null;
+  };
+
+  if (encoding === 'gzip' || encoding === 'x-gzip' || isGzipBuffer(buffer)) {
+    const decoded = tryDecode('gzip', zlib.gunzipSync);
+    if (decoded) return decoded;
+  }
+  if (encoding === 'deflate') {
+    const decoded = tryDecode('deflate', zlib.inflateSync);
+    if (decoded) return decoded;
+  }
+  if (encoding === 'br') {
+    const decoded = tryDecode('br', zlib.brotliDecompressSync);
+    if (decoded) return decoded;
+  }
+
+  const plain = buffer.toString('utf8');
+  if (plain.trim().startsWith('{') || plain.trim().startsWith('[')) {
+    return plain;
+  }
+
+  // Fallback : proxy sans Content-Encoding mais corps compressé
+  for (const [label, fn] of [
+    ['gzip', zlib.gunzipSync],
+    ['brotli', zlib.brotliDecompressSync],
+    ['deflate', zlib.inflateSync]
+  ] as const) {
+    const decoded = tryDecode(label, fn);
+    if (decoded) return decoded;
+  }
+
+  return plain;
+};
+
+const readResponseBody = async (response: Response): Promise<string> => {
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return decodeResponseBody(buffer, response.headers.get('content-encoding'));
+};
+
 const parseAllDebridJson = async (
   response: Response,
+  url: string,
   context: string
 ): Promise<AllDebridResponse> => {
-  const rawBody = await response.text();
+  const rawBuffer = Buffer.from(await response.arrayBuffer());
+  const contentEncoding = response.headers.get('content-encoding');
+  const rawBody = decodeResponseBody(rawBuffer, contentEncoding);
 
-  logAllDebridResponse('api', context, `${API_BASE}${context}`, {
+  logAllDebridResponse('api', context, url, {
     status: response.status,
     statusText: response.statusText,
     contentType: response.headers.get('content-type') ?? 'none',
+    contentEncoding: contentEncoding ?? 'none',
     contentLength: response.headers.get('content-length') ?? 'unknown',
-    bodyLength: rawBody.length,
+    rawBodyLength: rawBuffer.length,
+    decodedBodyLength: rawBody.length,
     bodyPreview: truncateForLog(rawBody || '[empty body]')
   });
 
@@ -193,6 +257,7 @@ const fetchApi = async (path: string, init: FetchApiInit = {}): Promise<Response
       signal: controller.signal,
       headers: {
         'User-Agent': 'Zone-Debrid/1.0',
+        'Accept-Encoding': 'identity',
         ...fetchInit.headers
       },
       ...(apiDispatcher && { dispatcher: apiDispatcher })
@@ -232,7 +297,7 @@ const postForm = async (path: string, formData: Record<string, string>, apiKey: 
     body: new URLSearchParams(formData)
   });
 
-  const data = await parseAllDebridJson(response, path);
+  const data = await parseAllDebridJson(response, `${API_BASE}${path}`, path);
 
   if (data.status !== 'success') {
     throw new Error(`${data.error?.code}: ${data.error?.message}`);
@@ -341,12 +406,12 @@ export const isAvailable = async (): Promise<boolean> => {
       logContext: 'healthcheck',
       timeoutMs: VALIDATION_TIMEOUT_MS
     });
-    const rawBody = await response.text();
+    const rawBody = await readResponseBody(response);
 
     logAllDebridResponse('api', 'GET', `${API_BASE}/`, {
       context: 'healthcheck',
       status: response.status,
-      bodyLength: rawBody.length,
+      decodedBodyLength: rawBody.length,
       bodyPreview: truncateForLog(rawBody || '[empty body]')
     });
 
@@ -376,7 +441,7 @@ const validateApiKey = async (apiKey: string): Promise<boolean> => {
       timeoutMs: VALIDATION_TIMEOUT_MS
     });
 
-    const data = await parseAllDebridJson(response, 'validateApiKey');
+    const data = await parseAllDebridJson(response, `${API_BASE}/user`, 'validateApiKey');
 
     if (data.status === 'success') {
       Logger.info('[AllDebrid][api] validateApiKey success');
